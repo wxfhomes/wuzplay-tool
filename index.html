@@ -1,0 +1,1480 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<title>Wuzplay Bluetooth Data Manager</title>
+<meta name="description" content="Wuzplay NFC emulator web tool — manage NFC tag .bin files and update firmware over Bluetooth." />
+<style>
+  /* ===== Brand tokens — matched to wuzplay.com (dark gray + cyan #00d2ff) ===== */
+  :root{
+    --accent:#00d2ff;            /* Wuzplay cyan — same as site logo/hover color */
+    --accent-2:#00a8d6;
+    --accent-soft:rgba(0,210,255,.12);
+    --bg:#141414;
+    --bg-2:#1a1a1a;
+    --panel:#1e1e1e;
+    --panel-2:#262626;
+    --line:#333333;
+    --text:#eeeeee;
+    --muted:#9a9a9a;
+    --danger:#ef4444;
+    --danger-soft:rgba(239,68,68,.12);
+    --warn:#f59e0b;
+    --radius:10px;
+    --mono:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+    --sans:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"PingFang SC","Microsoft YaHei",sans-serif;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;padding:0}
+  body{
+    font-family:var(--sans);background:var(--bg);color:var(--text);
+    line-height:1.5;-webkit-font-smoothing:antialiased;min-height:100vh;
+  }
+  a{color:var(--accent);text-decoration:none}
+  a:hover{text-decoration:underline}
+  .wrap{max-width:960px;margin:0 auto;padding:0 16px 64px}
+
+  /* ===== Header ===== */
+  header{
+    position:sticky;top:0;z-index:20;background:rgba(20,20,20,.88);
+    backdrop-filter:blur(12px);border-bottom:1px solid var(--line);
+  }
+  .head-inner{max-width:960px;margin:0 auto;padding:12px 16px;display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+  .logo{font-weight:800;font-style:italic;letter-spacing:.3px;font-size:22px;display:flex;align-items:baseline;gap:8px;color:var(--accent);text-shadow:0 1px 0 rgba(0,40,60,.8)}
+  .tagline{font-size:12px;font-style:normal;color:var(--muted)}
+  .head-spacer{flex:1}
+
+  /* ===== Connection bar ===== */
+  .connbar{display:flex;align-items:center;gap:12px;margin:18px 0 6px;flex-wrap:wrap}
+  .status{display:flex;align-items:center;gap:8px;font-size:13px;color:var(--muted)}
+  .dot{width:10px;height:10px;border-radius:50%;background:#556;box-shadow:0 0 0 3px rgba(85,85,102,.15)}
+  .dot.on{background:var(--accent);box-shadow:0 0 0 3px var(--accent-soft)}
+  .dot.busy{background:var(--warn);box-shadow:0 0 0 3px rgba(245,158,11,.15)}
+  .dot.err{background:var(--danger);box-shadow:0 0 0 3px var(--danger-soft)}
+  .dev-meta{font-size:12px;color:var(--muted);font-family:var(--mono)}
+
+  /* ===== Buttons ===== */
+  .btn{
+    display:inline-flex;align-items:center;justify-content:center;gap:7px;
+    border:1px solid var(--line);background:var(--panel-2);color:var(--text);
+    padding:9px 15px;border-radius:6px;font-size:14px;font-family:inherit;cursor:pointer;
+    transition:.15s;white-space:nowrap;
+  }
+  .btn:hover:not(:disabled){border-color:#4a4a4a;background:#2e2e2e}
+  .btn:disabled{opacity:.45;cursor:not-allowed}
+  .btn.primary{background:linear-gradient(180deg,var(--accent),var(--accent-2));border-color:transparent;color:#00232e;font-weight:700}
+  .btn.primary:hover:not(:disabled){filter:brightness(1.06)}
+  .btn.danger{color:#fca5a5;border-color:#5b2626}
+  .btn.danger:hover:not(:disabled){background:var(--danger-soft)}
+  .btn.sm{padding:6px 10px;font-size:12.5px;border-radius:5px}
+  .btn.icon{padding:7px 9px}
+
+  /* ===== Drive meter ===== */
+  .drive{margin:14px 0 4px;display:none}
+  .drive.show{display:block}
+  .drive-top{display:flex;justify-content:space-between;font-size:12.5px;color:var(--muted);margin-bottom:6px}
+  .meter{height:8px;border-radius:999px;background:var(--panel-2);overflow:hidden}
+  .meter > i{display:block;height:100%;background:linear-gradient(90deg,var(--accent),var(--accent-2));width:0}
+
+  /* ===== Tabs ===== */
+  .tabs{display:flex;gap:4px;margin:22px 0 14px;border-bottom:1px solid var(--line)}
+  .tab{
+    background:transparent;border:0;border-bottom:2px solid transparent;color:var(--muted);
+    padding:10px 16px;font-size:14.5px;font-family:inherit;cursor:pointer;margin-bottom:-1px;
+  }
+  .tab.on{color:var(--text);border-bottom-color:var(--accent);font-weight:600}
+  .panel{display:none}
+  .panel.on{display:block}
+
+  /* ===== File manager ===== */
+  .toolbar{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:12px}
+  .toolbar .grow{flex:1}
+  .crumbs{display:flex;align-items:center;gap:2px;flex-wrap:wrap;font-size:13.5px;font-family:var(--mono);color:var(--muted)}
+  .crumbs .cr{cursor:pointer;padding:3px 6px;border-radius:6px}
+  .crumbs .cr:hover{background:var(--panel-2);color:var(--text)}
+  .crumbs .cr.cur{color:var(--text)}
+  .crumbs .sep{opacity:.4}
+
+  /* upload progress row */
+  .upbar{display:flex;align-items:center;gap:12px;margin:0 0 12px;border:1px solid var(--line);border-radius:10px;padding:10px 14px;background:var(--panel)}
+  .upbar .bar{flex:1;margin:0}
+  .uplabel{font-size:12.5px;color:var(--muted);font-family:var(--mono);white-space:nowrap;max-width:45%;overflow:hidden;text-overflow:ellipsis}
+  .uppct{font-size:12px;color:var(--muted);font-family:var(--mono);min-width:38px;text-align:right}
+
+  /* online firmware list */
+  .fw-sources{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:14px}
+
+  /* library search */
+  .lib-search{background:var(--bg-2);border:1px solid var(--line);border-radius:6px;color:var(--text);padding:9px 12px;font-size:14px;font-family:inherit}
+  .lib-search:focus{outline:none;border-color:var(--accent)}
+  .lib-search::placeholder{color:var(--muted)}
+  .lib-path{color:var(--muted);font-family:var(--mono);font-size:12px;margin-left:8px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+
+  .dropzone{border:1px solid var(--line);border-radius:var(--radius);background:var(--panel);overflow:hidden;position:relative}
+  .dropzone.drag{outline:2px dashed var(--accent);outline-offset:-6px;background:var(--accent-soft)}
+  table{width:100%;border-collapse:collapse}
+  th,td{text-align:left;padding:11px 14px;font-size:14px;border-bottom:1px solid var(--line)}
+  th{font-size:11.5px;text-transform:uppercase;letter-spacing:.6px;color:var(--muted);font-weight:600;background:var(--bg-2)}
+  tbody tr:last-child td{border-bottom:0}
+  tbody tr.nav{cursor:pointer}
+  tbody tr.nav:hover{background:var(--panel-2)}
+  .name-cell{display:flex;align-items:center;gap:10px;min-width:0}
+  .ic{width:20px;height:20px;flex:none;opacity:.85}
+  .ic.dir{color:var(--accent)}
+  .fname{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .tag-badge{font-family:var(--mono);font-size:11px;color:var(--muted);background:var(--panel-2);padding:1px 6px;border-radius:5px;margin-left:8px}
+  .size-cell{color:var(--muted);font-family:var(--mono);font-size:12.5px;white-space:nowrap}
+  .row-actions{display:flex;gap:4px;justify-content:flex-end;opacity:.55;transition:.15s}
+  tr:hover .row-actions{opacity:1}
+  .empty{padding:44px 16px;text-align:center;color:var(--muted);font-size:14px}
+  .empty svg{opacity:.4;margin-bottom:8px}
+
+  /* ===== Firmware ===== */
+  .card{border:1px solid var(--line);border-radius:var(--radius);background:var(--panel);padding:20px}
+  .warnbox{border:1px solid #5b4410;background:rgba(245,158,11,.08);border-radius:12px;padding:14px 16px;font-size:13.5px;color:#fcd9a1;margin-bottom:18px;display:flex;gap:10px}
+  .warnbox svg{flex:none;color:var(--warn)}
+  .fw-pick{border:1px dashed var(--line);border-radius:12px;padding:26px;text-align:center;cursor:pointer;transition:.15s}
+  .fw-pick:hover{border-color:var(--accent);background:var(--accent-soft)}
+  .fw-pick.has{border-style:solid;text-align:left;cursor:default}
+  .fw-file{display:flex;align-items:center;gap:12px}
+  .fw-file .meta{flex:1;min-width:0}
+  .fw-file .fn{font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .fw-file .sub{font-size:12.5px;color:var(--muted);font-family:var(--mono)}
+  .stages{margin-top:18px;display:none}
+  .stages.show{display:block}
+  .stage{display:flex;align-items:center;gap:10px;padding:7px 0;font-size:13.5px;color:var(--muted)}
+  .stage .st-dot{width:16px;height:16px;border-radius:50%;border:2px solid var(--line);flex:none;position:relative}
+  .stage.done .st-dot{background:var(--accent);border-color:var(--accent)}
+  .stage.active{color:var(--text)}
+  .stage.active .st-dot{border-color:var(--accent);border-top-color:transparent;animation:spin .8s linear infinite}
+  @keyframes spin{to{transform:rotate(360deg)}}
+  .bar{height:10px;border-radius:999px;background:var(--panel-2);overflow:hidden;margin-top:14px;display:none}
+  .bar.show{display:block}
+  .bar > i{display:block;height:100%;width:0;background:linear-gradient(90deg,var(--accent),var(--accent-2));transition:width .2s}
+  .bar-info{display:flex;justify-content:space-between;font-size:12px;color:var(--muted);margin-top:6px;font-family:var(--mono)}
+
+  /* ===== Log ===== */
+  .logwrap{margin-top:26px;border:1px solid var(--line);border-radius:var(--radius);background:var(--panel);overflow:hidden}
+  .logwrap summary{padding:11px 16px;cursor:pointer;font-size:13px;color:var(--muted);list-style:none;display:flex;align-items:center;gap:8px}
+  .logwrap summary::-webkit-details-marker{display:none}
+  .log{max-height:220px;overflow:auto;padding:10px 16px;font-family:var(--mono);font-size:12px;border-top:1px solid var(--line)}
+  .log div{padding:1px 0;white-space:pre-wrap;word-break:break-all}
+  .log .t-ok{color:#86efac}
+  .log .t-err{color:#fca5a5}
+  .log .t-cmd{color:#93c5fd}
+  .log .t-info{color:var(--muted)}
+
+  /* ===== Notices / footer ===== */
+  .notice{border:1px solid #5b4410;background:rgba(245,158,11,.08);color:#fcd9a1;border-radius:12px;padding:12px 15px;font-size:13px;margin:16px 0;display:flex;gap:10px}
+  .notice.err{border-color:#5b2626;background:var(--danger-soft);color:#fca5a5}
+  .notice svg{flex:none}
+  .note-close{flex:none;background:none;border:0;color:inherit;opacity:.6;font-size:20px;line-height:1;cursor:pointer;padding:0 2px;align-self:flex-start}
+  .note-close:hover{opacity:1}
+  footer{margin-top:36px;padding-top:18px;border-top:1px solid var(--line);font-size:12.5px;color:var(--muted);text-align:center}
+
+  /* ===== Modal ===== */
+  .modal-bg{position:fixed;inset:0;background:rgba(0,0,0,.6);display:none;align-items:center;justify-content:center;z-index:60;padding:16px}
+  .modal-bg.show{display:flex}
+  .modal{background:var(--panel);border:1px solid var(--line);border-radius:16px;max-width:420px;width:100%;padding:22px}
+  .modal h3{margin:0 0 8px;font-size:17px}
+  .modal p{margin:0 0 16px;color:var(--muted);font-size:13.5px}
+  .modal input{width:100%;background:var(--bg-2);border:1px solid var(--line);border-radius:9px;color:var(--text);padding:10px 12px;font-size:14px;font-family:inherit;margin-bottom:16px}
+  .modal input:focus{outline:none;border-color:var(--accent)}
+  .modal-actions{display:flex;gap:8px;justify-content:flex-end}
+
+  /* ===== Toast ===== */
+  .toast{position:fixed;bottom:22px;left:50%;transform:translateX(-50%) translateY(20px);background:var(--panel-2);border:1px solid var(--line);color:var(--text);padding:11px 18px;border-radius:10px;font-size:13.5px;opacity:0;transition:.25s;z-index:80;pointer-events:none;max-width:90vw}
+  .toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+  .toast.err{border-color:#5b2626;color:#fca5a5}
+  .hide{display:none!important}
+  @media(max-width:560px){
+    .col-type{display:none}
+    th,td{padding:10px}
+  }
+</style>
+</head>
+<body>
+<header>
+  <div class="head-inner">
+    <div class="logo">Wuzplay<span class="tagline" data-i18n="tagline">Bluetooth Data Manager</span></div>
+    <div class="head-spacer"></div>
+  </div>
+</header>
+
+<div class="wrap">
+
+  <!-- Unsupported-browser notice -->
+  <div id="unsupported" class="notice err hide">
+    <svg class="ic" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+    <span data-i18n="unsupported"></span>
+  </div>
+
+  <!-- Before-you-start note (dismissible, remembered per browser) -->
+  <div id="usageNote" class="notice hide">
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
+    <div style="flex:1">
+      <b data-i18n="noteTitle">Before you start</b>
+      <div data-i18n="noteBody" style="margin-top:4px">Use this tool to manage the files on your device. Please watch the tutorial video before you begin. Never delete the device's system files, and don't put your data into system folders.</div>
+    </div>
+    <button id="usageNoteClose" class="note-close" aria-label="Dismiss">&times;</button>
+  </div>
+
+  <!-- Connection bar -->
+  <div class="connbar">
+    <button id="btnConnect" class="btn primary">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M7 8l10 8-5 4V4l5 4L7 16"/></svg>
+      <span data-i18n="connect">Connect</span>
+    </button>
+    <button id="btnDisconnect" class="btn hide" data-i18n="disconnect">Disconnect</button>
+    <div class="status">
+      <span id="dot" class="dot"></span>
+      <span id="statusText" data-i18n="notConnected">Not connected</span>
+    </div>
+    <span id="devMeta" class="dev-meta"></span>
+  </div>
+
+  <!-- Drive meter -->
+  <div id="drive" class="drive">
+    <div class="drive-top"><span id="driveLabel"></span><span id="driveFree"></span></div>
+    <div class="meter"><i id="driveFill"></i></div>
+  </div>
+
+  <!-- Tabs -->
+  <div class="tabs">
+    <button class="tab on" data-tab="files" data-i18n="tabFiles">Files</button>
+    <button class="tab" data-tab="library" data-i18n="tabLibrary">Library</button>
+    <button class="tab" data-tab="fw" data-i18n="tabFw">Firmware</button>
+  </div>
+
+  <!-- ===== Files panel ===== -->
+  <section id="panel-files" class="panel on">
+    <div class="toolbar">
+      <div id="crumbs" class="crumbs grow"></div>
+      <input id="fileInput" type="file" multiple class="hide" />
+      <input id="folderInput" type="file" webkitdirectory class="hide" />
+      <button id="btnUpload" class="btn sm" disabled><span data-i18n="upload">Upload</span></button>
+      <button id="btnUploadFolder" class="btn sm" disabled data-i18n="uploadFolder">Upload folder</button>
+      <button id="btnMkdir" class="btn sm" disabled data-i18n="newFolder">New folder</button>
+      <button id="btnRefresh" class="btn sm icon" disabled title="Refresh">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M23 4v6h-6M1 20v-6h6"/><path d="M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15"/></svg>
+      </button>
+      <button id="btnFormat" class="btn sm danger" disabled data-i18n="format">Format</button>
+    </div>
+
+    <div id="upWrap" class="upbar hide">
+      <span id="upLabel" class="uplabel"></span>
+      <div class="bar show"><i id="upFill"></i></div>
+      <span id="upPct" class="uppct"></span>
+      <button id="btnUpCancel" class="btn sm danger" data-i18n="cancel">Cancel</button>
+    </div>
+
+    <div id="dropzone" class="dropzone">
+      <table>
+        <thead>
+          <tr>
+            <th data-i18n="colName">Name</th>
+            <th class="col-type" data-i18n="colType">Type</th>
+            <th style="text-align:right" data-i18n="colSize">Size</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody id="fileRows"></tbody>
+      </table>
+      <div id="filesEmpty" class="empty hide">
+        <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M4 4h5l2 3h9v13H4z"/></svg>
+        <div id="filesEmptyText">Connect your device to manage NFC tag files</div>
+      </div>
+    </div>
+    <p style="font-size:12.5px;color:var(--muted);margin-top:10px" data-i18n="dropHint">Drag .bin files or entire folders onto the area above — subfolders are uploaded too.</p>
+  </section>
+
+  <!-- ===== Library panel (built-in NFC tag collection) ===== -->
+  <section id="panel-library" class="panel">
+    <div id="libDisconnected" class="notice">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+      <span data-i18n="libConnectHint">Connect your device (Files tab) to send library items straight to it.</span>
+    </div>
+
+    <div class="toolbar">
+      <div id="libCrumbs" class="crumbs grow"></div>
+      <span id="libCount" class="dev-meta"></span>
+    </div>
+    <div class="toolbar">
+      <input id="libSearch" type="search" class="lib-search grow" data-i18n-ph="libSearchPh" placeholder="Search all tags…" autocomplete="off" />
+    </div>
+
+    <div id="libUpWrap" class="upbar hide">
+      <span id="libUpLabel" class="uplabel"></span>
+      <div class="bar show"><i id="libUpFill"></i></div>
+      <span id="libUpPct" class="uppct"></span>
+      <button id="btnLibUpCancel" class="btn sm danger" data-i18n="cancel">Cancel</button>
+    </div>
+
+    <div class="dropzone">
+      <table>
+        <thead>
+          <tr>
+            <th data-i18n="colName">Name</th>
+            <th class="col-type" data-i18n="colType">Type</th>
+            <th style="text-align:right" data-i18n="colSize">Size</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody id="libRows"></tbody>
+      </table>
+      <div id="libEmpty" class="empty hide">
+        <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M4 4h5l2 3h9v13H4z"/></svg>
+        <div id="libEmptyText">Loading built-in library…</div>
+      </div>
+    </div>
+    <p style="font-size:12.5px;color:var(--muted);margin-top:10px" data-i18n="libHint">Pick a tag and send it to your device, or open a series and send the whole folder.</p>
+  </section>
+
+  <!-- ===== Firmware panel ===== -->
+  <section id="panel-fw" class="panel">
+    <div class="warnbox">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+      <span data-i18n="fwWarn">Flashing firmware is risky: use a package that matches your device model (LCD / OLED). Do not power off or close this page during the update, or the device may fail to boot.</span>
+    </div>
+
+    <div class="card">
+      <div id="fwSources" class="fw-sources hide"></div>
+      <input id="fwInput" type="file" accept=".zip" class="hide" />
+      <div id="fwPick" class="fw-pick">
+        <svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" style="opacity:.6;margin-bottom:8px"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+        <div data-i18n="fwPick">Click to choose a firmware package (.zip)</div>
+        <div style="font-size:12px;color:var(--muted);margin-top:4px" data-i18n="fwPickSub">Official Pixl.js release or a single firmware .zip</div>
+      </div>
+
+      <div class="stages" id="fwStages">
+        <div class="stage" data-stage="enter"><span class="st-dot"></span><span data-i18n="stEnter">Switch to update mode</span></div>
+        <div class="stage" data-stage="reconnect"><span class="st-dot"></span><span data-i18n="stReconnect">Reconnect in update mode</span></div>
+        <div class="stage" data-stage="prepare"><span class="st-dot"></span><span data-i18n="stPrepare">Parse firmware package</span></div>
+        <div class="stage" data-stage="transfer"><span class="st-dot"></span><span data-i18n="stTransfer">Transfer firmware</span></div>
+        <div class="stage" data-stage="reboot"><span class="st-dot"></span><span data-i18n="stReboot">Reboot device</span></div>
+      </div>
+      <div class="bar" id="fwBar"><i></i></div>
+      <div class="bar-info hide" id="fwBarInfo"><span id="fwBarLabel"></span><span id="fwBarPct"></span></div>
+
+      <div id="fwReconnectBox" class="notice hide" style="margin-top:16px">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+        <div style="flex:1">
+          <div data-i18n="fwReconnectMsg">The device is rebooting into update mode; its Bluetooth name usually becomes <b>DfuTarg</b>. Click the button below and pick it in the dialog.</div>
+          <button id="btnFwReconnect" class="btn sm primary" style="margin-top:10px" data-i18n="fwReconnectBtn">Select update-mode device</button>
+        </div>
+      </div>
+
+      <div id="fwResult" class="hide" style="margin-top:16px"></div>
+
+      <div style="margin-top:18px;display:flex;gap:8px">
+        <button id="btnFwStart" class="btn primary" disabled data-i18n="fwStart">Start update</button>
+        <button id="btnFwReset" class="btn hide" data-i18n="fwReset">Start over</button>
+      </div>
+    </div>
+    <p style="font-size:12.5px;color:var(--muted);margin-top:12px" data-i18n="fwNote">Tip: connect the device on the Files tab first, then update here for best reliability.</p>
+  </section>
+
+  <!-- Activity log -->
+  <details class="logwrap" id="logWrap">
+    <summary>
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>
+      <span data-i18n="log">Activity log</span>
+    </summary>
+    <div id="log" class="log"></div>
+  </details>
+
+  <footer>
+    <div data-i18n="footerSupport">Web Bluetooth: Chrome on Android, Chrome/Edge on desktop. On iPhone use the <a href="https://apps.apple.com/app/bluefy-web-ble-browser/id1492822055" target="_blank" rel="noopener">Bluefy</a> browser.</div>
+    <div style="margin-top:6px;opacity:.7">© Wuzplay · <span data-i18n="footerNote">NFC tag data manager &amp; firmware updater</span></div>
+  </footer>
+</div>
+
+<!-- Modal -->
+<div id="modalBg" class="modal-bg">
+  <div class="modal">
+    <h3 id="modalTitle"></h3>
+    <p id="modalMsg"></p>
+    <input id="modalInput" class="hide" />
+    <div class="modal-actions">
+      <button id="modalCancel" class="btn sm" data-i18n="cancel">Cancel</button>
+      <button id="modalOk" class="btn sm primary" data-i18n="confirm">Confirm</button>
+    </div>
+  </div>
+</div>
+
+<div id="toast" class="toast"></div>
+
+<!-- Vendored: Nordic Secure DFU (MIT) -->
+<script src="secure-dfu.js"></script>
+<!-- JSZip for firmware .zip parsing (loaded on demand for the Firmware tab) -->
+<script>
+/* ============================================================================
+ * Wuzplay NFC Tool
+ * BLE protocol adapted from Mochi (MIT, github.com/tasken/Mochi) for the
+ * pixl.js / allmiibo open-source firmware. Firmware DFU via Nordic Secure DFU.
+ * ==========================================================================*/
+(function(){
+"use strict";
+
+/* ---------- feature flags ---------- */
+// Built-in amiibo tag library. Off for now — the tool ships file management + OTA
+// only. Flip to true to bring the Library tab back; nothing else needs changing.
+const ENABLE_LIBRARY=false;
+
+/* ---------- i18n ---------- */
+const I18N = {
+  en:{
+    tagline:"Bluetooth Data Manager", connect:"Connect", disconnect:"Disconnect", notConnected:"Not connected",
+    connecting:"Connecting…", connected:"Connected", reconnecting:"Reconnecting…", disconnected:"Disconnected",
+    tabFiles:"Files", tabLibrary:"Library", tabFw:"Firmware", upload:"Upload", newFolder:"New folder", format:"Format",
+    libConnectHint:"Connect your device (Files tab) to send library items straight to it.",
+    libSearchPh:"Search all tags…", libHint:"Pick a tag and send it to your device, or open a series and send the whole folder.",
+    libCount:(n)=>`${n} tags`, libLoading:"Loading built-in library…", libLoadErr:"Couldn't load the built-in library.",
+    libNoResults:"No matching tags.", libSend:"Send to device", libSendFolder:"Send folder to device",
+    libRoot:"Library", libNeedConn:"Connect your device first (Files tab).",
+    libFetching:"Fetching from library…", libFolderEmpty:"That folder has no .bin files.",
+    tSentTo:(n)=>`Sent to ${n}`,
+    colName:"Name", colType:"Type", colSize:"Size", typeDir:"Folder", typeFile:"File",
+    connectFirst:"Connect your device to manage NFC tag files",
+    dropHint:"Drag .bin files or entire folders onto the area above — subfolders are uploaded too.",
+    download:"Download", rename:"Rename", del:"Delete", cancel:"Cancel", confirm:"Confirm",
+    unsupported:"This browser doesn't support Web Bluetooth. Use Chrome/Edge on Android or desktop; on iPhone use the Bluefy browser.",
+    noteTitle:"Before you start",
+    noteBody:"Use this tool to manage the files on your device. Please watch the tutorial video before you begin. Never delete the device's system files, and don't put your data into system folders.",
+    fwWarn:"Flashing firmware is risky: use a package that matches your device model (LCD / OLED). Do not power off or close this page during the update, or the device may fail to boot.",
+    fwPick:"Click to choose a firmware package (.zip)", fwPickSub:"Official Pixl.js release or a single firmware .zip",
+    fwStart:"Start update", fwReset:"Start over", fwReconnectBtn:"Select update-mode device",
+    fwReconnectMsg:'The device is rebooting into update mode; its Bluetooth name usually becomes <b>DfuTarg</b>. Click the button below and pick it in the dialog.',
+    stEnter:"Switch to update mode", stReconnect:"Reconnect in update mode", stPrepare:"Parse firmware package",
+    stTransfer:"Transfer firmware", stReboot:"Reboot device",
+    fwNote:"Tip: connect the device on the Files tab first, then update here for best reliability.",
+    log:"Activity log", footerSupport:'Web Bluetooth: Chrome on Android, Chrome/Edge on desktop. On iPhone use the <a href="https://apps.apple.com/app/bluefy-web-ble-browser/id1492822055" target="_blank" rel="noopener">Bluefy</a> browser.',
+    footerNote:"NFC tag data manager & firmware updater",
+    mkdirTitle:"New folder", mkdirMsg:"Enter a folder name:",
+    renameTitle:"Rename", renameMsg:"Enter a new name:",
+    delTitle:"Confirm delete", delMsg:(n)=>`Delete "${n}"? This cannot be undone.`,
+    formatTitle:"Format device", formatMsg:"This deletes ALL files on the device and cannot be undone. Format now?",
+    tOk:"Done", tUploaded:(n)=>`Uploaded ${n} file(s)`, tDeleted:"Deleted", tRenamed:"Renamed",
+    tFolderCreated:"Folder created", tFormatted:"Device formatted", tDownloaded:"Downloaded",
+    uploading:(a,b)=>`Uploading ${a}/${b}…`, empty:"(empty folder)",
+    fwNeedZip:"Choose a firmware package first.", fwDone:"✅ Firmware updated! The device is rebooting.",
+    fwNoJszip:"Couldn't load the zip library. Check your connection and retry.",
+    errNotConn:"Device not connected.",
+    changeBtn:"Change", errNoDrive:"No storage drive detected.",
+    fwPickAgain:"No device selected — it's still waiting in update mode; click the button to try again.",
+    fwDirectDfu:"Device is already in update mode — starting transfer.",
+    uploadFolder:"Upload folder", upCancelled:"Upload cancelled",
+    upFailed:(n)=>`, ${n} failed`, upBusy:"An upload is in progress — wait or cancel it first.",
+    fwOnline:"OTA firmware:", fwFetching:"Downloading firmware package…", fwFetchErr:"Couldn't download the firmware package. Check your connection."
+  }
+};
+const LANG="en";
+function t(key,...args){const v=I18N[LANG][key]; return typeof v==="function"?v(...args):v;}
+
+/* ============================ BLE PROTOCOL ============================ */
+/* Adapted from Mochi client.js (MIT) — pixl.js / allmiibo NUS protocol.  */
+const NUS_SERVICE="6e400001-b5a3-f393-e0a9-e50e24dcca9e";
+const NUS_TX="6e400002-b5a3-f393-e0a9-e50e24dcca9e";
+const NUS_RX="6e400003-b5a3-f393-e0a9-e50e24dcca9e";
+const FRAME_HEADER=4;
+const MAX_FILE_NAME_BYTES=47, MAX_FILE_PATH_BYTES=63, MAX_FOLDER_PATH_BYTES=55;
+const enc=new TextEncoder(), dec=new TextDecoder();
+const VFS_ERR={0:"OK",1:"Command failed",[-1]:"Device error",[-2]:"Out of memory",[-3]:"End of file",[-4]:"Already exists",[-5]:"Name too long",[-6]:"Drive not found",[-7]:"Storage corrupted",[-90]:"Not found",[-91]:"No space left",[-99]:"Unsupported"};
+const CMD={0x01:"VERSION",0x02:"ENTER_DFU",0x10:"DRIVE_LIST",0x11:"FORMAT",0x12:"OPEN",0x13:"CLOSE",0x14:"READ",0x15:"WRITE",0x16:"DIR",0x17:"MKDIR",0x18:"REMOVE",0x19:"RENAME"};
+
+function encStr(v){const b=enc.encode(v);const o=new Uint8Array(2+b.length);o[0]=b.length&0xff;o[1]=(b.length>>8)&0xff;o.set(b,2);return o;}
+function cat(...cs){const n=cs.reduce((s,c)=>s+c.length,0);const o=new Uint8Array(n);let off=0;for(const c of cs){o.set(c,off);off+=c.length;}return o;}
+function u8len(v){return enc.encode(v).length;}
+function baseName(p){const a=p.split("/").filter(Boolean);return a.length?a[a.length-1]:"";}
+function parentPath(p){const i=p.lastIndexOf("/");return i<=2?p.slice(0,3):p.slice(0,i);}
+function validatePath(p,kind){
+  if(!p||p.length<3)throw new Error(`Invalid ${kind} path`);
+  const limit=kind==="folder"?MAX_FOLDER_PATH_BYTES:MAX_FILE_PATH_BYTES;
+  if(u8len(p)>limit)throw new Error(`${kind} path too long (max ${limit} bytes)`);
+  const b=baseName(p);
+  if(b&&u8len(b)>MAX_FILE_NAME_BYTES)throw new Error(`Name exceeds ${MAX_FILE_NAME_BYTES} bytes`);
+}
+function sortEntries(e){return[...e].sort((a,b)=>{const ad=a.type==="DIR"?0:1,bd=b.type==="DIR"?0:1;if(ad!==bd)return ad-bd;return a.name.localeCompare(b.name,undefined,{numeric:true,sensitivity:"base"});});}
+
+class Cursor{
+  constructor(b){this.b=b;this.o=0;this.v=new DataView(b.buffer,b.byteOffset);}
+  remaining(){return this.b.length-this.o;}
+  u8(){return this.b[this.o++];}
+  u16(){const v=this.b[this.o]|(this.b[this.o+1]<<8);this.o+=2;return v;}
+  u32(){const v=this.v.getUint32(this.o,true);this.o+=4;return v;}
+  take(n){const v=this.b.slice(this.o,this.o+n);this.o+=n;return v;}
+  str(){return dec.decode(this.take(this.u16()));}
+}
+
+class PixlClient{
+  constructor(logFn){
+    this._log=logFn;this.device=null;this.tx=null;this.rx=null;
+    this.queue=Promise.resolve();this.pending=null;this.chunking=false;this.rxParts=[];
+    this._timer=null;this._intentional=false;this._reconnecting=false;this._abort=false;
+    this.createdFolders=new Set(); // memo: folders verified/created this connection
+    this._onNotif=this._onNotif.bind(this);this._onDisc=this._onDisc.bind(this);
+    this.onDisconnect=null;this.onReconnecting=null;this.onReconnect=null;
+  }
+  async connect(){
+    if(!navigator.bluetooth)throw new Error("Web Bluetooth is not available.");
+    this._log("Requesting BLE device…");
+    const d=await navigator.bluetooth.requestDevice({filters:[{services:[NUS_SERVICE]}],optionalServices:[NUS_SERVICE]});
+    await this._setup(d);
+  }
+  async connectTo(d){await this._setup(d);}
+  async _setup(device){
+    if(this.device&&this.device!==device)this.device.removeEventListener("gattserverdisconnected",this._onDisc);
+    device.removeEventListener("gattserverdisconnected",this._onDisc);
+    if(this.rx)this.rx.removeEventListener("characteristicvaluechanged",this._onNotif);
+    let server;
+    try{
+      server=await Promise.race([
+        device.gatt.connect(),
+        new Promise((_,rej)=>setTimeout(()=>rej(new Error("Connection timed out.")),15000)),
+      ]);
+    }catch(err){try{device.gatt.disconnect();}catch(_){}throw err;}
+    device.addEventListener("gattserverdisconnected",this._onDisc);
+    try{
+      const svc=await server.getPrimaryService(NUS_SERVICE);
+      this.tx=await svc.getCharacteristic(NUS_TX);
+      this.rx=await svc.getCharacteristic(NUS_RX);
+      this.device=device;
+      await this.rx.startNotifications();
+      this.rx.addEventListener("characteristicvaluechanged",this._onNotif);
+    }catch(err){
+      device.removeEventListener("gattserverdisconnected",this._onDisc);
+      this.tx=this.rx=this.device=null;
+      if(server.connected)server.disconnect();
+      throw err;
+    }
+    this._log(`Connected to ${device.name||"BLE device"}.`);
+    const saved=this._log;this._log=()=>{};
+    try{await this._send(0x13,Uint8Array.of(0));}catch(_){}finally{this._log=saved;}
+  }
+  disconnect(){
+    if(this._reconnecting){this._abort=true;return;}
+    if(this.device&&this.device.gatt.connected){this._intentional=true;this.device.gatt.disconnect();return;}
+    this._reset("Disconnected.");
+  }
+  _reset(reason){
+    if(this.rx)this.rx.removeEventListener("characteristicvaluechanged",this._onNotif);
+    if(this.device)this.device.removeEventListener("gattserverdisconnected",this._onDisc);
+    clearTimeout(this._timer);this._timer=null;
+    if(this.pending){this.pending.reject(new Error(reason));this.pending=null;}
+    this.device=this.tx=this.rx=null;this.queue=Promise.resolve();this.chunking=false;this.rxParts=[];
+    this.createdFolders.clear();
+  }
+  _onDisc(){
+    this._log("Device disconnected.");
+    const saved=this.device,intentional=this._intentional;this._intentional=false;
+    this._reset("Device disconnected.");
+    if(this._reconnecting)return;
+    if(saved&&!intentional){if(this.onReconnecting)this.onReconnecting();this._retry(saved);}
+    else if(this.onDisconnect)this.onDisconnect();
+  }
+  async _retry(device){
+    this._reconnecting=true;this._abort=false;
+    for(const delay of[2000,4000,8000]){
+      await new Promise(r=>setTimeout(r,delay));
+      if(this._abort){this._reconnecting=false;this._abort=false;if(this.onDisconnect)this.onDisconnect();return;}
+      try{
+        this._log("Reconnecting…");await this._setup(device);
+        if(this._abort){ // user hit Disconnect while we were reconnecting — honor it
+          this._reconnecting=false;this._abort=false;
+          if(this.device&&this.device.gatt.connected){this._intentional=true;this.device.gatt.disconnect();}
+          else if(this.onDisconnect)this.onDisconnect();
+          return;
+        }
+        this._reconnecting=false;if(this.onReconnect)this.onReconnect();return;
+      }catch(_){}
+    }
+    this._reconnecting=false;if(this.onDisconnect)this.onDisconnect();
+  }
+  _vfs(s){const n=s>127?s-256:s;return VFS_ERR[n]||`Unknown error (${n})`;}
+  _send(cmd,payload=new Uint8Array()){
+    // Serialize commands; keep the stored chain always-resolving so one failed
+    // command can't poison every later one. Callers still see their own errors.
+    const p=this.queue.then(()=>this._perform(cmd,payload));
+    this.queue=p.catch(()=>{});
+    return p;
+  }
+  _perform(cmd,payload){
+    if(!this.tx)return Promise.reject(new Error("Not connected."));
+    const name=CMD[cmd]||("0x"+cmd.toString(16));
+    this._log(`→ ${name}${payload.length?` (${payload.length}B)`:""}`);
+    return new Promise((resolve,reject)=>{
+      this.pending={resolve,reject,cmd};
+      const f=new Uint8Array(FRAME_HEADER+payload.length);f[0]=cmd;f.set(payload,FRAME_HEADER);
+      const w=typeof this.tx.writeValueWithResponse==="function"?this.tx.writeValueWithResponse(f):this.tx.writeValue(f);
+      w.then(()=>{
+        if(!this.pending)return;const ref=this.pending;
+        this._timer=setTimeout(()=>{
+          if(this.pending===ref){this.pending=null;this._timer=null;this.queue=Promise.resolve();reject(new Error("Command timed out: "+name));}
+        },15000);
+      }).catch(err=>{this.pending=null;reject(err);});
+    });
+  }
+  _onNotif(ev){
+    if(!this.pending)return;
+    try{
+      const dv=ev.target.value;
+      const inc=new Uint8Array(dv.buffer.slice(dv.byteOffset,dv.byteOffset+dv.byteLength));
+      const chunk=inc[2]|(inc[3]<<8);const more=(chunk&0x8000)!==0;
+      if(more){
+        if(!this.chunking){this.rxParts=[inc];this.chunking=true;}
+        else{
+          if(this.rxParts.length>64){this.chunking=false;this.rxParts=[];clearTimeout(this._timer);this._timer=null;if(this.pending){this.queue=Promise.resolve();this.pending.reject(new Error("RX overflow"));this.pending=null;}return;}
+          this.rxParts.push(inc.slice(FRAME_HEADER));
+        }
+        return;
+      }
+      let frame=inc;
+      if(this.chunking){this.rxParts.push(inc.slice(FRAME_HEADER));frame=cat(...this.rxParts);this.rxParts=[];this.chunking=false;}
+      const resp={cmd:frame[0],status:frame[1],payload:frame.slice(FRAME_HEADER)};
+      const p=this.pending;clearTimeout(this._timer);this._timer=null;this.pending=null;
+      const name=CMD[resp.cmd]||("0x"+resp.cmd.toString(16));
+      this._log(resp.status===0?`← ${name} OK${resp.payload.length?` (${resp.payload.length}B)`:""}`:`← ${name} ERR: ${this._vfs(resp.status)}`);
+      if(resp.cmd!==p.cmd){p.reject(new Error("Unexpected response"));return;}
+      p.resolve(resp);
+    }catch(err){clearTimeout(this._timer);this._timer=null;if(this.pending){this.pending.reject(err);this.pending=null;}this.chunking=false;this.rxParts=[];}
+  }
+  // ---- commands ----
+  async getVersion(){const r=await this._send(0x01);if(r.status!==0)return{ok:false,error:this._vfs(r.status)};const c=new Cursor(r.payload);const version=c.str();const ble=c.remaining()>0?c.str():"";return{ok:true,data:{version,ble}};}
+  async listDrives(){const r=await this._send(0x10);if(r.status!==0)return{ok:false,error:this._vfs(r.status)};const c=new Cursor(r.payload);const n=c.u8();const d=[];for(let i=0;i<n;i++)d.push({status:c.u8(),label:String.fromCharCode(c.u8()),name:c.str(),totalBytes:c.u32(),freeBytes:c.u32()});return{ok:true,data:d};}
+  async formatDrive(label){const r=await this._send(0x11,Uint8Array.of(label.charCodeAt(0)));return r.status!==0?{ok:false,error:this._vfs(r.status)}:{ok:true};}
+  async readFolder(path){
+    const r=await this._send(0x16,encStr(path));if(r.status!==0)return{ok:false,error:this._vfs(r.status)};
+    const c=new Cursor(r.payload);const entries=[];
+    while(c.remaining()>=8){
+      const nameLen=c.b[c.o]|(c.b[c.o+1]<<8);
+      if(c.remaining()<2+nameLen+4+1+1)break;
+      const name=c.str();const size=c.u32();const type=c.u8()===1?"DIR":"FILE";const metaSize=c.u8();
+      if(c.remaining()<metaSize)break;
+      const meta={flags:0,nfcTagHead:null,nfcTagTail:null};
+      if(metaSize>0){
+        const start=c.o,end=start+metaSize;let pos=start;
+        while(pos<end){
+          const tv=c.b[pos];pos++;
+          if(tv===1){if(pos>=end)break;const l=c.b[pos];pos+=1+l;}
+          else if(tv===2){if(pos>=end)break;meta.flags=c.b[pos];pos+=1;}
+          else if(tv===3){if(pos+8>end)break;const mv=new DataView(c.b.buffer,c.b.byteOffset+pos,8);meta.nfcTagHead=mv.getUint32(0,true);meta.nfcTagTail=mv.getUint32(4,true);pos+=8;}
+          else break;
+        }
+        c.o=Math.min(end,c.b.length);
+      }
+      entries.push({name,size,type,meta});
+    }
+    return{ok:true,data:entries};
+  }
+  async createFolder(path){const r=await this._send(0x17,encStr(path));return r.status!==0?{ok:false,error:this._vfs(r.status)}:{ok:true};}
+  async removePath(path){const r=await this._send(0x18,encStr(path));return r.status!==0?{ok:false,error:this._vfs(r.status)}:{ok:true};}
+  async renamePath(o,n){const r=await this._send(0x19,cat(encStr(o),encStr(n)));return r.status!==0?{ok:false,error:this._vfs(r.status)}:{ok:true};}
+  async openFile(path,mode){const m={r:0x08,w:0x16}[mode];const r=await this._send(0x12,cat(encStr(path),Uint8Array.of(m)));if(r.status!==0)return{ok:false,error:this._vfs(r.status)};return{ok:true,data:new Cursor(r.payload).u8()};}
+  async writeChunk(id,chunk){const r=await this._send(0x15,cat(Uint8Array.of(id),chunk));return r.status!==0?{ok:false,error:this._vfs(r.status)}:{ok:true};}
+  async closeFile(id){const r=await this._send(0x13,Uint8Array.of(id));return r.status!==0?{ok:false,error:this._vfs(r.status)}:{ok:true};}
+  async enterDfu(){this._intentional=true;try{await this._send(0x02);return{ok:true};}catch(err){const m=err.message||"";if(m.includes("disconnected")||m.includes("timed out")||m.includes("Not connected"))return{ok:true};this._intentional=false;return{ok:false,error:m};}}
+  async readFileData(path){const o=await this.openFile(path,"r");if(!o.ok)return o;const id=o.data;try{const r=await this._send(0x14,Uint8Array.of(id));if(r.status!==0)return{ok:false,error:this._vfs(r.status)};return{ok:true,data:r.payload};}finally{await this.closeFile(id).catch(()=>{});}}
+  async uploadFile(remotePath,file,onProgress,abortSignal,chunkSize=242){
+    validatePath(remotePath,"file");
+    const o=await this.openFile(remotePath,"w");if(!o.ok)throw new Error(o.error);
+    const id=o.data;
+    try{
+      if(file.size===0){onProgress(0,0);return;}
+      let off=0;
+      while(off<file.size){
+        if(abortSignal&&abortSignal.aborted)throw new Error("Upload aborted.");
+        const end=Math.min(off+chunkSize,file.size);
+        const chunk=new Uint8Array(await file.slice(off,end).arrayBuffer());
+        const res=await this.writeChunk(id,chunk);if(!res.ok)throw new Error(res.error);
+        off=end;onProgress(off,file.size);
+      }
+    }finally{await this.closeFile(id).catch(()=>{});}
+  }
+  async ensureFolder(remotePath){
+    const root=remotePath.slice(0,3);if(remotePath===root)return;
+    const segs=remotePath.slice(3).split("/").filter(Boolean);let cur=root;
+    for(const s of segs){cur=cur===root?`${root}${s}`:`${cur}/${s}`;validatePath(cur,"folder");
+      if(this.createdFolders.has(cur))continue; // already verified this session
+      const res=await this.createFolder(cur);
+      if(!res.ok&&res.error!=="Already exists"){
+        const listing=await this.readFolder(parentPath(cur));if(!listing.ok)throw new Error(listing.error);
+        const exists=listing.data.some(e=>e.type==="DIR"&&e.name===baseName(cur));if(!exists)throw new Error(res.error);
+      }
+      this.createdFolders.add(cur);
+    }
+  }
+}
+
+/* ============================ APP STATE ============================ */
+const $=s=>document.querySelector(s);
+const el={};
+["btnConnect","btnDisconnect","dot","statusText","devMeta","drive","driveLabel","driveFree","driveFill",
+ "crumbs","fileInput","btnUpload","btnMkdir","btnRefresh","btnFormat","dropzone","fileRows","filesEmpty",
+ "log","unsupported","fwInput","fwPick","fwStages","fwBar","fwBarInfo","fwBarLabel","fwBarPct",
+ "fwReconnectBox","btnFwReconnect","fwResult","btnFwStart","btnFwReset",
+ "modalBg","modalTitle","modalMsg","modalInput","modalCancel","modalOk","toast",
+ "filesEmptyText","logWrap",
+ "folderInput","btnUploadFolder","upWrap","upLabel","upPct","upFill","btnUpCancel","fwSources",
+ "libDisconnected","libCrumbs","libCount","libSearch","libUpWrap","libUpLabel","libUpFill","libUpPct",
+ "btnLibUpCancel","libRows","libEmpty","libEmptyText","usageNote","usageNoteClose"]
+ .forEach(id=>el[id]=document.getElementById(id));
+
+const state={client:null,conn:"idle",drive:null,path:null,version:null,listingEmpty:false};
+let uploadBusy=false;
+
+/* ---------- logging ---------- */
+function log(msg,cls="info"){
+  const d=document.createElement("div");d.className="t-"+cls;
+  const ts=new Date().toLocaleTimeString();d.textContent=`[${ts}] ${msg}`;
+  el.log.appendChild(d);
+  if(el.logWrap.open)el.log.scrollTop=el.log.scrollHeight; // skip forced reflow while collapsed
+  while(el.log.children.length>400)el.log.removeChild(el.log.firstChild);
+}
+/* ---------- toast ---------- */
+let toastTimer;
+function toast(msg,err){el.toast.textContent=msg;el.toast.className="toast show"+(err?" err":"");clearTimeout(toastTimer);toastTimer=setTimeout(()=>el.toast.className="toast",2600);}
+
+/* ---------- i18n apply ---------- */
+function applyI18n(){
+  document.documentElement.lang=LANG;
+  document.querySelectorAll("[data-i18n]").forEach(n=>{
+    const k=n.getAttribute("data-i18n");const v=I18N[LANG][k];
+    if(v==null)return;
+    if(k==="fwReconnectMsg"||k==="footerSupport"||k==="fwWarn")n.innerHTML=v;else n.textContent=v;
+  });
+  document.querySelectorAll("[data-i18n-ph]").forEach(n=>{
+    const v=I18N[LANG][n.getAttribute("data-i18n-ph")];if(v!=null)n.placeholder=v;
+  });
+  setStatus(state.conn);
+  if(state.path)renderCrumbs();
+  // refresh dynamically-rendered strings that bypass data-i18n
+  el.filesEmptyText.textContent=(state.conn==="connected"&&state.listingEmpty)?t("empty"):t("connectFirst");
+  if(state.drive)updateDrive();
+  if(window.__fwFile)renderFwPick();
+  renderFwSources();
+}
+/* ---------- helpers ---------- */
+function fmtBytes(n){if(n==null)return"";if(n<1024)return n+" B";if(n<1048576)return(n/1024).toFixed(1)+" KB";return(n/1048576).toFixed(2)+" MB";}
+function joinPath(dir,name){return dir.endsWith("/")?dir+name:dir+"/"+name;}
+function triggerDownload(bytes,name){
+  const blob=new Blob([bytes],{type:"application/octet-stream"});
+  const url=URL.createObjectURL(blob);const a=document.createElement("a");a.href=url;a.download=name;
+  document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),1000);
+}
+
+/* ---------- modal ---------- */
+function modal({title,msg,input,value="",okText}={}){
+  return new Promise(resolve=>{
+    el.modalTitle.textContent=title;el.modalMsg.textContent=msg;
+    if(input){el.modalInput.classList.remove("hide");el.modalInput.value=value;}
+    else el.modalInput.classList.add("hide");
+    el.modalOk.textContent=okText||t("confirm");
+    el.modalBg.classList.add("show");
+    if(input)setTimeout(()=>{el.modalInput.focus();el.modalInput.select();},50);
+    function close(v){el.modalBg.classList.remove("show");el.modalOk.onclick=null;el.modalCancel.onclick=null;el.modalInput.onkeydown=null;resolve(v);}
+    el.modalOk.onclick=()=>close(input?el.modalInput.value.trim():true);
+    el.modalCancel.onclick=()=>close(null);
+    el.modalInput.onkeydown=e=>{if(e.key==="Enter")el.modalOk.click();if(e.key==="Escape")el.modalCancel.click();};
+  });
+}
+
+/* ---------- connection status ---------- */
+function setStatus(s){
+  state.conn=s;
+  const map={idle:["","notConnected"],connecting:["busy","connecting"],connected:["on","connected"],reconnecting:["busy","reconnecting"],error:["err","disconnected"],idle2:["","disconnected"]};
+  const cfg=map[s]||map.idle;
+  el.dot.className="dot "+(cfg[0]||"");
+  el.statusText.textContent=t(cfg[1]);
+  const on=s==="connected";
+  el.btnConnect.classList.toggle("hide",on||s==="connecting"||s==="reconnecting");
+  el.btnDisconnect.classList.toggle("hide",!on&&s!=="reconnecting");
+  ["btnUpload","btnUploadFolder","btnMkdir","btnRefresh","btnFormat"].forEach(b=>el[b].disabled=!on||uploadBusy);
+  // firmware update only needs a package: startDfu can pick a device itself
+  // (including one stranded in update mode from an interrupted flash)
+  el.btnFwStart.disabled=!window.__fwFile;
+  libUpdateConnUi();
+}
+
+/* ============================ FILE MANAGER ============================ */
+async function connect(){
+  if(!navigator.bluetooth){
+    // plain http:// (insecure context): stay quiet — Bluetooth only works once deployed over HTTPS
+    if(window.isSecureContext){el.unsupported.classList.remove("hide");toast(t("unsupported"),true);}
+    return;
+  }
+  if(state.client){ // never leave a previous client connected/retrying in the background
+    state.client.onDisconnect=state.client.onReconnecting=state.client.onReconnect=null;
+    try{state.client.disconnect();}catch(_){}
+  }
+  state.client=new PixlClient(m=>log(m,m.startsWith("←")?(m.includes("ERR")?"err":"ok"):(m.startsWith("→")?"cmd":"info")));
+  state.client.onDisconnect=()=>resetConnUi("idle2");
+  state.client.onReconnecting=()=>setStatus("reconnecting");
+  state.client.onReconnect=()=>{setStatus("connected");refresh();};
+  setStatus("connecting");
+  try{
+    await state.client.connect();
+    setStatus("connected");
+    const ver=await state.client.getVersion();
+    if(ver.ok){state.version=ver.data.version;el.devMeta.textContent=[ver.data.version,ver.data.ble].filter(Boolean).join("  ·  ");}
+    const dr=await state.client.listDrives();
+    if(dr.ok&&dr.data.length){state.drive=dr.data[0];state.path=state.drive.label+":/";updateDrive();await browse(state.path);}
+    else{state.path="E:/";await browse(state.path);}
+  }catch(err){
+    if(err&&err.name==="NotFoundError"){log("Picker dismissed.","info");setStatus("idle");}
+    else{
+      log("Connect failed: "+(err.message||err),"err");toast(err.message||String(err),true);
+      try{state.client.disconnect();}catch(_){} // tear the link down — don't orphan a live GATT connection
+      setStatus("error");
+    }
+  }
+}
+function resetConnUi(status){
+  state.drive=null;state.path=null;state.listingEmpty=false;
+  setStatus(status);
+  el.devMeta.textContent="";el.drive.classList.remove("show");
+  el.fileRows.innerHTML="";el.crumbs.innerHTML="";
+  el.filesEmptyText.textContent=t("connectFirst");el.filesEmpty.classList.remove("hide");
+}
+function disconnect(){if(state.client)state.client.disconnect();resetConnUi("idle");}
+
+function updateDrive(){
+  if(!state.drive){el.drive.classList.remove("show");return;}
+  const d=state.drive;const used=d.totalBytes-d.freeBytes;const pct=d.totalBytes?used/d.totalBytes*100:0;
+  el.driveLabel.textContent=`${d.name||d.label+":"}  ·  ${fmtBytes(used)} / ${fmtBytes(d.totalBytes)}`;
+  el.driveFree.textContent=`${fmtBytes(d.freeBytes)} free`;
+  el.driveFill.style.width=pct.toFixed(1)+"%";
+  el.drive.classList.add("show");
+}
+function renderCrumbs(){
+  const root=state.path.slice(0,3);
+  const rest=state.path.slice(3).split("/").filter(Boolean);
+  let acc=root;const parts=[{label:root,path:root}];
+  for(const seg of rest){acc=acc===root?root+seg:acc+"/"+seg;parts.push({label:seg,path:acc});}
+  el.crumbs.innerHTML="";
+  parts.forEach((p,i)=>{
+    if(i>0){const s=document.createElement("span");s.className="sep";s.textContent="/";el.crumbs.appendChild(s);}
+    const c=document.createElement("span");c.className="cr"+(i===parts.length-1?" cur":"");c.textContent=p.label;c.dataset.path=p.path;el.crumbs.appendChild(c);
+  });
+}
+el.crumbs.onclick=e=>{const c=e.target.closest(".cr");if(c&&c.dataset.path!==state.path)browse(c.dataset.path);};
+
+function dirIcon(){return '<svg class="ic dir" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 7a2 2 0 012-2h4l2 3h8a2 2 0 012 2v7a2 2 0 01-2 2H5a2 2 0 01-2-2z"/></svg>';}
+function fileIcon(){return '<svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>';}
+
+async function browse(path){
+  if(!state.client)return;
+  const res=await state.client.readFolder(path);
+  if(!res.ok){toast(res.error,true);return;} // don't commit path/crumbs until the folder actually loaded
+  state.path=path;renderCrumbs();
+  const entries=sortEntries(res.data);
+  el.fileRows.innerHTML="";
+  state.listingEmpty=!entries.length;
+  if(!entries.length){el.filesEmptyText.textContent=t("empty");el.filesEmpty.classList.remove("hide");}
+  else el.filesEmpty.classList.add("hide");
+  for(const en of entries){
+    const tr=document.createElement("tr");
+    const isDir=en.type==="DIR";
+    if(isDir)tr.className="nav";
+    tr.dataset.name=en.name;tr.dataset.type=en.type;
+    const hasTag=en.meta&&en.meta.nfcTagHead!=null;
+    const tag=hasTag?`<span class="tag-badge">${(en.meta.nfcTagHead>>>0).toString(16).padStart(8,"0")}</span>`:"";
+    tr.innerHTML=`
+      <td><div class="name-cell">${isDir?dirIcon():fileIcon()}<span class="fname">${escapeHtml(en.name)}</span>${tag}</div></td>
+      <td class="col-type" style="color:var(--muted);font-size:12.5px">${isDir?t("typeDir"):t("typeFile")}</td>
+      <td class="size-cell" style="text-align:right">${isDir?"":fmtBytes(en.size)}</td>
+      <td><div class="row-actions">
+        ${isDir?"":`<button class="btn sm icon" data-act="download" title="${t("download")}"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg></button>`}
+        <button class="btn sm icon" data-act="rename" title="${t("rename")}"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.12 2.12 0 013 3L12 15l-4 1 1-4z"/></svg></button>
+        <button class="btn sm icon" data-act="delete" title="${t("del")}"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6M10 11v6M14 11v6M8 6V4a2 2 0 012-2h4a2 2 0 012 2v2"/></svg></button>
+      </div></td>`;
+    el.fileRows.appendChild(tr);
+  }
+}
+function escapeHtml(s){return s.replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));}
+
+el.fileRows.onclick=async e=>{
+  const tr=e.target.closest("tr");if(!tr)return;
+  const name=tr.dataset.name,isDir=tr.dataset.type==="DIR";
+  const actBtn=e.target.closest("[data-act]");
+  if(actBtn){e.stopPropagation();return handleAction(actBtn.dataset.act,name,isDir);}
+  if(isDir)browse(joinPath(state.path,name));
+};
+
+async function handleAction(act,name,isDir){
+  const full=joinPath(state.path,name);
+  if(act==="download"){
+    const res=await state.client.readFileData(full);
+    if(!res.ok)return toast(res.error,true);
+    triggerDownload(res.data,name);toast(t("tDownloaded"));
+  }else if(act==="rename"){
+    const nn=await modal({title:t("renameTitle"),msg:t("renameMsg"),input:true,value:name});
+    if(!nn||nn===name)return;
+    const target=joinPath(state.path,nn);
+    try{validatePath(target,isDir?"folder":"file");}catch(err){return toast(err.message,true);}
+    const res=await state.client.renamePath(full,target);
+    if(!res.ok)return toast(res.error,true);toast(t("tRenamed"));browse(state.path);
+  }else if(act==="delete"){
+    const ok=await modal({title:t("delTitle"),msg:t("delMsg",name),okText:t("del")});
+    if(!ok)return;
+    const res=await state.client.removePath(full);
+    if(!res.ok)return toast(res.error,true);toast(t("tDeleted"));refresh();
+  }
+}
+
+async function refresh(){if(state.client){const dr=await state.client.listDrives();if(dr.ok&&dr.data.length){state.drive=dr.data[0];updateDrive();}await browse(state.path);}}
+
+/* ---------- upload (files & folders, with progress + cancel) ---------- */
+// progress UI targets — Files tab by default, Library tab passes its own
+const UP_UI_FILES={wrap:el.upWrap,label:el.upLabel,fill:el.upFill,pct:el.upPct,cancel:el.btnUpCancel};
+const UP_UI_LIB={wrap:el.libUpWrap,label:el.libUpLabel,fill:el.libUpFill,pct:el.libUpPct,cancel:el.btnLibUpCancel};
+// items: [{rel:"sub/dir"|"", file:File}] — rel is the folder path relative to the destination
+async function uploadItems(items,ui=UP_UI_FILES){
+  if(!state.client||!items.length)return;
+  if(uploadBusy)return toast(t("upBusy"),true);
+  items=items.filter(it=>!it.file.name.startsWith(".")); // skip .DS_Store & friends
+  if(!items.length)return;
+  const basePath=state.path; // pin the destination — user may navigate away mid-upload
+  const ctrl=new AbortController();
+  uploadBusy=true;setStatus(state.conn);
+  ui.wrap.classList.remove("hide");
+  ui.cancel.onclick=()=>ctrl.abort();
+  let ok=0;const failed=[];let cancelled=false;
+  try{
+    for(let i=0;i<items.length;i++){
+      if(ctrl.signal.aborted){cancelled=true;break;}
+      const {rel,file}=items[i];
+      ui.label.textContent=`${i+1}/${items.length} · ${(rel?rel+"/":"")+file.name}`;
+      ui.fill.style.width="0%";ui.pct.textContent="0%";
+      try{
+        const destDir=rel?joinPath(basePath,rel):basePath;
+        if(rel)await state.client.ensureFolder(destDir);
+        await state.client.uploadFile(joinPath(destDir,file.name),file,(a,b)=>{
+          const pct=b>0?a/b*100:100;
+          ui.fill.style.width=pct.toFixed(1)+"%";ui.pct.textContent=pct.toFixed(0)+"%";
+        },ctrl.signal);
+        ok++;log(`Uploaded ${(rel?rel+"/":"")+file.name} (${fmtBytes(file.size)})`,"ok");
+      }catch(err){
+        if(ctrl.signal.aborted){cancelled=true;break;}
+        failed.push(file.name);
+        log("Upload failed "+file.name+": "+(err.message||err),"err");
+      }
+    }
+  }finally{
+    uploadBusy=false;setStatus(state.conn);
+    ui.wrap.classList.add("hide");
+  }
+  if(cancelled)toast(t("upCancelled")+(ok?` (${ok} OK)`:""),true);
+  else toast(t("tUploaded",ok)+(failed.length?t("upFailed",failed.length):""),failed.length>0);
+  await refresh();
+}
+function filesToItems(files){return[...files].map(f=>({rel:"",file:f}));}
+
+el.btnUpload.onclick=()=>{if(!uploadBusy)el.fileInput.click();};
+el.fileInput.onchange=e=>{uploadItems(filesToItems(e.target.files));e.target.value="";};
+
+// folder picker: webkitRelativePath = "root/sub/file.bin" → rel keeps the folder structure
+el.btnUploadFolder.onclick=()=>{if(!uploadBusy)el.folderInput.click();};
+el.folderInput.onchange=e=>{
+  const items=[...e.target.files].map(f=>{
+    const parts=(f.webkitRelativePath||f.name).split("/");
+    return{rel:parts.slice(0,-1).join("/"),file:f};
+  });
+  uploadItems(items);e.target.value="";
+};
+
+/* drag & drop — accepts both loose files and whole folders (recursive) */
+function grabDropEntries(dt){ // must run synchronously inside the drop event
+  const entries=[];
+  if(dt.items)for(const it of dt.items){const en=it.webkitGetAsEntry&&it.webkitGetAsEntry();if(en)entries.push(en);}
+  return entries;
+}
+async function walkEntries(entries){
+  const out=[];
+  async function walk(entry,rel){
+    if(entry.isFile){
+      const f=await new Promise((res,rej)=>entry.file(res,rej));
+      out.push({rel,file:f});
+    }else if(entry.isDirectory){
+      const dir=rel?rel+"/"+entry.name:entry.name;
+      const reader=entry.createReader();
+      for(;;){ // readEntries returns batches of ≤100; loop until empty
+        const batch=await new Promise((res,rej)=>reader.readEntries(res,rej));
+        if(!batch.length)break;
+        for(const e of batch)await walk(e,dir);
+      }
+    }
+  }
+  for(const en of entries)await walk(en,"");
+  return out;
+}
+let dragCount=0;
+el.dropzone.addEventListener("dragenter",e=>{e.preventDefault();if(state.conn==="connected"&&!uploadBusy){dragCount++;el.dropzone.classList.add("drag");}});
+el.dropzone.addEventListener("dragover",e=>e.preventDefault());
+el.dropzone.addEventListener("dragleave",e=>{if(--dragCount<=0){dragCount=0;el.dropzone.classList.remove("drag");}});
+el.dropzone.addEventListener("drop",async e=>{
+  e.preventDefault();dragCount=0;el.dropzone.classList.remove("drag");
+  if(state.conn!=="connected"||uploadBusy)return;
+  const entries=grabDropEntries(e.dataTransfer);
+  if(entries.length){uploadItems(await walkEntries(entries));}
+  else if(e.dataTransfer.files.length)uploadItems(filesToItems(e.dataTransfer.files));
+});
+
+el.btnMkdir.onclick=async()=>{
+  const name=await modal({title:t("mkdirTitle"),msg:t("mkdirMsg"),input:true});
+  if(!name)return;
+  const target=joinPath(state.path,name);
+  try{validatePath(target,"folder");}catch(err){return toast(err.message,true);}
+  const res=await state.client.createFolder(target);
+  if(!res.ok)return toast(res.error,true);toast(t("tFolderCreated"));browse(state.path);
+};
+el.btnRefresh.onclick=refresh;
+el.btnFormat.onclick=async()=>{
+  if(!state.drive)return toast(t("errNoDrive"),true);
+  const ok=await modal({title:t("formatTitle"),msg:t("formatMsg"),okText:t("format")});
+  if(!ok)return;
+  const res=await state.client.formatDrive(state.drive.label);
+  if(!res.ok)return toast(res.error,true);toast(t("tFormatted"));refresh();
+};
+el.btnConnect.onclick=connect;
+el.btnDisconnect.onclick=disconnect;
+
+/* ============================ FIRMWARE (DFU) ============================ */
+window.__fwFile=null;
+let dfuBusy=false;
+
+function loadJSZip(){
+  if(window.JSZip)return Promise.resolve(window.JSZip);
+  return new Promise((resolve,reject)=>{
+    const s=document.createElement("script");
+    s.src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js";
+    s.onload=()=>window.JSZip?resolve(window.JSZip):reject(new Error("JSZip failed"));
+    s.onerror=()=>reject(new Error("JSZip failed"));
+    document.head.appendChild(s);
+  });
+}
+/* ---------- OTA firmware list (auto-loaded from tool/firmware/) ---------- */
+// Drop OTA .zip packages into tool/firmware/ and run `python3 build-firmware.py`
+// to regenerate firmware/firmware.json — the page fetches it and shows a button
+// per package. FIRMWARE_SOURCES below is an optional way to add extra entries by
+// hand (e.g. a package hosted elsewhere, same origin): {name, url}.
+const FIRMWARE_DIR="firmware/";
+const FIRMWARE_MANIFEST="firmware/firmware.json";
+const FIRMWARE_SOURCES=[];
+let fwSourcesList=[]; // resolved list actually rendered (manifest + manual entries)
+
+async function loadFwSources(){
+  fwSourcesList=[...FIRMWARE_SOURCES];
+  try{
+    const resp=await fetch(FIRMWARE_MANIFEST,{cache:"no-store"});
+    if(resp.ok){
+      const data=await resp.json();
+      for(const p of (data.packages||[])){
+        if(p&&p.file)fwSourcesList.push({name:p.name||p.file,url:FIRMWARE_DIR+encodeURIComponent(p.file)});
+      }
+      log(`OTA firmware list: ${fwSourcesList.length} package(s).`,"info");
+    }
+  }catch(_){/* no firmware folder deployed — the section just stays hidden */}
+  renderFwSources();
+}
+function renderFwSources(){
+  if(!fwSourcesList.length){el.fwSources.classList.add("hide");return;}
+  el.fwSources.classList.remove("hide");
+  el.fwSources.innerHTML=`<span style="font-size:12.5px;color:var(--muted);align-self:center">${t("fwOnline")}</span>`;
+  fwSourcesList.forEach(src=>{
+    const b=document.createElement("button");
+    b.className="btn sm";b.textContent=src.name;
+    b.onclick=async()=>{
+      if(dfuBusy)return;
+      b.disabled=true;toast(t("fwFetching"));
+      try{
+        const resp=await fetch(src.url);
+        if(!resp.ok)throw new Error("HTTP "+resp.status);
+        const blob=await resp.blob();
+        const fname=decodeURIComponent(src.url.split("/").pop()||"firmware.zip");
+        window.__fwFile=new File([blob],fname,{type:"application/zip"});
+        renderFwPick();el.btnFwStart.disabled=false;
+      }catch(err){log("Firmware fetch failed: "+(err.message||err),"err");toast(t("fwFetchErr"),true);}
+      finally{b.disabled=false;}
+    };
+    el.fwSources.appendChild(b);
+  });
+}
+
+el.fwPick.onclick=()=>{if(!dfuBusy)el.fwInput.click();};
+function renderFwPick(){ // re-runnable so a language toggle can refresh the label
+  const f=window.__fwFile;if(!f)return;
+  el.fwPick.className="fw-pick has";
+  const variant=/(_lcd|lcd)/i.test(f.name)?"LCD":/(_oled|oled)/i.test(f.name)?"OLED":"";
+  el.fwPick.innerHTML=`<div class="fw-file">
+    <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="1.8"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+    <div class="meta"><div class="fn">${escapeHtml(f.name)}</div><div class="sub">${fmtBytes(f.size)}${variant?"  ·  "+variant:""}</div></div>
+    <button class="btn sm" id="fwChange">${t("changeBtn")}</button></div>`;
+  document.getElementById("fwChange").onclick=ev=>{ev.stopPropagation();el.fwInput.click();};
+}
+el.fwInput.onchange=e=>{const f=e.target.files[0];if(!f)return;window.__fwFile=f;renderFwPick();el.btnFwStart.disabled=false;};
+
+function fwStage(id,st){
+  document.querySelectorAll("#fwStages .stage").forEach(s=>{
+    if(s.dataset.stage===id){s.classList.remove("done");s.classList.toggle("active",st==="active");if(st==="done"){s.classList.remove("active");s.classList.add("done");}}
+  });
+}
+function fwStageDone(id){const s=document.querySelector(`#fwStages .stage[data-stage="${id}"]`);if(s){s.classList.remove("active");s.classList.add("done");}}
+let _fwFill=null,_fwLastPct=-1;
+function fwProgress(pct,label){ // fires per BLE packet — cache the node and throttle writes
+  if(!_fwFill)_fwFill=el.fwBar.querySelector("i");
+  el.fwBar.classList.add("show");el.fwBarInfo.classList.remove("hide");
+  if(Math.abs(pct-_fwLastPct)<0.2&&pct<100)return;
+  _fwLastPct=pct>=100?-1:pct;
+  _fwFill.style.width=pct.toFixed(1)+"%";el.fwBarLabel.textContent=label||"";el.fwBarPct.textContent=pct.toFixed(0)+"%";
+}
+
+async function loadDfuImages(zipBlob,JSZip){
+  const outer=await JSZip.loadAsync(zipBlob);
+  let zip=outer;
+  if(!outer.file("manifest.json")){
+    const nested=Object.values(outer.files).find(e=>!e.dir&&e.name.toLowerCase().endsWith(".zip"));
+    if(!nested)throw new Error("No firmware .zip found inside the package.");
+    zip=await JSZip.loadAsync(await nested.async("blob"));
+  }
+  const mf=zip.file("manifest.json");
+  if(!mf)throw new Error("Invalid firmware package (no manifest.json).");
+  const manifest=(JSON.parse(await mf.async("string")).manifest)||{};
+  async function getImage(types){
+    for(const type of types){const e=manifest[type];if(!e)continue;
+      const init=zip.file(e.dat_file),img=zip.file(e.bin_file);
+      if(!init||!img)throw new Error("Package incomplete: missing files for "+type);
+      return{type,initData:await init.async("arraybuffer"),imageData:await img.async("arraybuffer")};}
+    return null;
+  }
+  const base=await getImage(["softdevice","bootloader","softdevice_bootloader"]);
+  const app=await getImage(["application"]);
+  if(!base&&!app)throw new Error("No firmware image found in package.");
+  return{base,app};
+}
+
+el.btnFwStart.onclick=startDfu;
+el.btnFwReset.onclick=()=>{resetFwUi();};
+function resetFwUi(){
+  dfuBusy=false;el.fwStages.classList.remove("show");el.fwBar.classList.remove("show");el.fwBarInfo.classList.add("hide");
+  el.fwReconnectBox.classList.add("hide");el.fwResult.classList.add("hide");el.fwResult.innerHTML="";
+  el.btnFwReset.classList.add("hide");el.btnFwStart.classList.remove("hide");
+  el.btnFwStart.disabled=!window.__fwFile;
+  _fwLastPct=-1;
+  document.querySelectorAll("#fwStages .stage").forEach(s=>s.classList.remove("done","active"));
+}
+function waitReconnectClick(dfu,DFU_UUID){
+  // Never rejects on a dismissed picker: the device is sitting in DFU mode
+  // waiting for us, so closing the chooser must not abort the whole update.
+  return new Promise((resolve)=>{
+    el.fwReconnectBox.classList.remove("hide");
+    el.btnFwReconnect.onclick=()=>{el.btnFwReconnect.disabled=true;
+      dfu.requestDevice(false,[{services:[DFU_UUID]}])
+        .then(d=>{el.fwReconnectBox.classList.add("hide");el.btnFwReconnect.disabled=false;resolve(d);})
+        .catch(err=>{
+          el.btnFwReconnect.disabled=false;
+          log("[DFU] "+(err.message||err),"err");
+          toast(t("fwPickAgain"),true);
+        });
+    };
+  });
+}
+
+const IS_MOBILE=/Android|iPhone|iPad|Mobi/i.test(navigator.userAgent);
+
+async function startDfu(){
+  if(!window.__fwFile)return toast(t("fwNeedZip"),true);
+  dfuBusy=true;el.btnFwStart.disabled=true;el.btnFwStart.classList.add("hide");
+  el.fwStages.classList.add("show");el.fwResult.classList.add("hide");
+  const DFU_UUID=window.SecureDfu.SERVICE_UUID;
+  const dfu=new window.SecureDfu(null,undefined,0,12,{
+    packetSize:244,              // full-size packets (~12x faster than the 20B default)
+    maxDfuAttempts:3,            // survive transient GATT drops mid-flash
+    reconnectDelayMs:1500,
+    notificationTimeoutMs:20000,
+    operationTimeoutMs:30000,
+    dataObjectDelayMs:IS_MOBILE?100:0, // mobile stacks need breathing room between objects
+  });
+  dfu.addEventListener(window.SecureDfu.EVENT_LOG,({message})=>log("[DFU] "+message,"cmd"));
+  dfu.addEventListener(window.SecureDfu.EVENT_PROGRESS,({object,currentBytes,totalBytes})=>{
+    const pct=totalBytes>0?currentBytes/totalBytes*100:0;
+    fwProgress(pct,object==="init"?"Init packet":"Firmware");
+  });
+  try{
+    // 1. load zip lib + parse images (before touching the device, so failures are cheap)
+    fwStage("prepare","active");
+    let JSZip;try{JSZip=await loadJSZip();}catch(_){throw new Error(t("fwNoJszip"));}
+    const images=await loadDfuImages(window.__fwFile,JSZip);
+    fwStageDone("prepare");
+
+    // 2. get a device that is in DFU mode
+    let device;
+    if(state.conn==="connected"){
+      // normal path: reboot the connected device into its bootloader
+      fwStage("enter","active");
+      log("[DFU] Rebooting device into update mode…","cmd");
+      const enterRes=await state.client.enterDfu();
+      if(!enterRes.ok)throw new Error("Couldn't switch to update mode: "+enterRes.error);
+      fwStageDone("enter");
+      await new Promise(r=>setTimeout(r,3000));
+      fwStage("reconnect","active");
+      log("[DFU] Waiting for you to select the update-mode device…","cmd");
+      device=await waitReconnectClick(dfu,DFU_UUID);
+      fwStageDone("reconnect");
+    }else{
+      // recovery path: unified picker accepts both normal (NUS) and update-mode
+      // (DFU) devices, so an interrupted flash can always be resumed from here
+      fwStage("enter","active");
+      log("[DFU] Select your device…","cmd");
+      const picked=await navigator.bluetooth.requestDevice({
+        filters:[{services:[NUS_SERVICE]},{services:[DFU_UUID]}],
+        optionalServices:[NUS_SERVICE,DFU_UUID],
+      });
+      const server=await picked.gatt.connect();
+      let inDfuMode=false;
+      try{await server.getPrimaryService(DFU_UUID);inDfuMode=true;}catch(_){}
+      if(inDfuMode){
+        server.disconnect();
+        log(`[DFU] "${picked.name||"device"}" is already in update mode.`,"ok");
+        toast(t("fwDirectDfu"));
+        fwStageDone("enter");fwStageDone("reconnect");
+        device=picked;
+      }else{
+        server.disconnect();
+        const tmp=new PixlClient(m=>log("[DFU] "+m,"cmd"));
+        await tmp.connectTo(picked);
+        log("[DFU] Rebooting device into update mode…","cmd");
+        const enterRes=await tmp.enterDfu();
+        if(!enterRes.ok){tmp.disconnect();throw new Error("Couldn't switch to update mode: "+enterRes.error);}
+        fwStageDone("enter");
+        await new Promise(r=>setTimeout(r,3000));
+        fwStage("reconnect","active");
+        log("[DFU] Waiting for you to select the update-mode device…","cmd");
+        device=await waitReconnectClick(dfu,DFU_UUID);
+        fwStageDone("reconnect");
+      }
+    }
+    log(`[DFU] Connected to "${device.name||"DFU device"}".`,"ok");
+
+    // 3. transfer
+    fwStage("transfer","active");
+    if(images.base){
+      await dfu.update(device,images.base.initData,images.base.imageData);
+      log("[DFU] "+images.base.type+" uploaded.","ok");
+      if(images.app){
+        // let the bootloader finish activating part 1 before we reconnect for part 2
+        log("[DFU] Waiting for the device to activate part 1…","cmd");
+        await new Promise(r=>setTimeout(r,3000));
+      }
+    }
+    if(images.app){await dfu.update(device,images.app.initData,images.app.imageData);log("[DFU] application uploaded.","ok");}
+    fwStageDone("transfer");
+
+    // 4. done
+    fwStage("reboot","active");await new Promise(r=>setTimeout(r,500));fwStageDone("reboot");
+    log("[DFU] Firmware updated successfully.","ok");
+    el.fwResult.className="notice";el.fwResult.style.borderColor="";el.fwResult.innerHTML=t("fwDone");el.fwResult.classList.remove("hide");
+    toast(t("fwDone"));
+  }catch(err){
+    const msg=(err&&err.name==="NotFoundError")?"No device selected.":(err.message||String(err));
+    log("[DFU] Failed: "+msg,"err");
+    el.fwResult.className="notice err";el.fwResult.innerHTML="❌ "+escapeHtml(msg);el.fwResult.classList.remove("hide");
+    el.fwReconnectBox.classList.add("hide");
+  }finally{
+    dfuBusy=false;el.btnFwReset.classList.remove("hide");
+  }
+}
+
+/* ============================ LIBRARY (built-in NFC tags) ============================ */
+// Where the bundled .bin files + manifest are served. Both ship inside tool/
+// (see build-library.py). Change LIBRARY_BASE if you host the data elsewhere.
+const LIBRARY_BASE="./library/";
+const LIBRARY_MANIFEST="./library.json";
+const libState={loaded:false,loading:false,root:null,path:[],q:""};
+
+function libFileUrl(path){return LIBRARY_BASE+path.split("/").map(encodeURIComponent).join("/");}
+function libColl(node,out){for(const f of node.files)out.push(f);for(const d of node.dirs.values())libColl(d,out);return out;}
+function libNodeAt(pathArr){let n=libState.root;for(const s of pathArr){n=n&&n.dirs.get(s);}return n||null;}
+function buildLibTree(files){
+  const root={dirs:new Map(),files:[]};
+  for(const f of files){
+    const segs=f.path.split("/");const name=segs.pop();let node=root;
+    for(const s of segs){if(!node.dirs.has(s))node.dirs.set(s,{dirs:new Map(),files:[]});node=node.dirs.get(s);}
+    node.files.push({name,path:f.path,size:f.size});
+  }
+  return root;
+}
+async function libEnsureLoaded(){
+  if(!ENABLE_LIBRARY||libState.loaded||libState.loading)return;
+  libState.loading=true;
+  el.libEmpty.classList.remove("hide");el.libEmptyText.textContent=t("libLoading");
+  try{
+    const resp=await fetch(LIBRARY_MANIFEST);
+    if(!resp.ok)throw new Error("HTTP "+resp.status);
+    const data=await resp.json();
+    libState.root=buildLibTree(data.files||[]);
+    libState.loaded=true;
+    log(`Library loaded: ${(data.files||[]).length} tags.`,"info");
+    renderLibrary();
+  }catch(err){
+    log("Library load failed: "+(err.message||err),"err");
+    el.libEmpty.classList.remove("hide");el.libEmptyText.textContent=t("libLoadErr");
+  }finally{libState.loading=false;}
+}
+function libUpdateConnUi(){if(!ENABLE_LIBRARY)return;el.libDisconnected.classList.toggle("hide",state.conn==="connected");}
+function libSortNames(a,b){return a.localeCompare(b,undefined,{numeric:true,sensitivity:"base"});}
+
+function renderLibCrumbs(){
+  el.libCrumbs.innerHTML="";
+  const parts=[{label:t("libRoot"),idx:-1},...libState.path.map((s,i)=>({label:s,idx:i}))];
+  parts.forEach((p,i)=>{
+    if(i>0){const s=document.createElement("span");s.className="sep";s.textContent="/";el.libCrumbs.appendChild(s);}
+    const c=document.createElement("span");c.className="cr"+(i===parts.length-1?" cur":"");
+    c.textContent=p.label;c.dataset.idx=p.idx;el.libCrumbs.appendChild(c);
+  });
+}
+el.libCrumbs.onclick=e=>{const c=e.target.closest(".cr");if(!c)return;
+  const idx=+c.dataset.idx;libState.path=idx<0?[]:libState.path.slice(0,idx+1);
+  libState.q="";el.libSearch.value="";renderLibrary();};
+
+function renderLibrary(){
+  if(!libState.loaded)return;
+  libUpdateConnUi();renderLibCrumbs();
+  const q=libState.q.trim().toLowerCase();
+  el.libRows.innerHTML="";
+  let rows=[];
+  if(q){
+    const matched=libColl(libState.root,[]).filter(f=>f.name.toLowerCase().includes(q));
+    el.libCount.textContent=t("libCount",matched.length);
+    rows=matched.slice(0,400).map(f=>({kind:"file",file:f,showPath:true}));
+    el.libEmpty.classList.toggle("hide",matched.length>0);
+    if(!matched.length)el.libEmptyText.textContent=t("libNoResults");
+  }else{
+    const node=libNodeAt(libState.path);
+    if(!node){libState.path=[];return renderLibrary();}
+    const dirs=[...node.dirs.keys()].sort(libSortNames);
+    const files=[...node.files].sort((a,b)=>libSortNames(a.name,b.name));
+    el.libCount.textContent=t("libCount",libColl(libState.root,[]).length);
+    rows=[...dirs.map(d=>({kind:"dir",name:d})),...files.map(f=>({kind:"file",file:f}))];
+    el.libEmpty.classList.toggle("hide",rows.length>0);
+    if(!rows.length)el.libEmptyText.textContent=t("libNoResults");
+  }
+  for(const r of rows){
+    const tr=document.createElement("tr");
+    if(r.kind==="dir"){
+      const node=libNodeAt([...libState.path,r.name]);const cnt=node?libColl(node,[]).length:0;
+      tr.className="nav";tr.dataset.dir=r.name;
+      tr.innerHTML=`
+        <td><div class="name-cell">${dirIcon()}<span class="fname">${escapeHtml(r.name)}</span></div></td>
+        <td class="col-type" style="color:var(--muted);font-size:12.5px">${t("typeDir")}</td>
+        <td class="size-cell" style="text-align:right">${cnt}</td>
+        <td><div class="row-actions">
+          <button class="btn sm" data-act="send-folder" title="${t("libSendFolder")}">${t("libSend")}</button>
+        </div></td>`;
+    }else{
+      const f=r.file;tr.dataset.file=f.path;
+      const dir=f.path.slice(0,f.path.length-f.name.length).replace(/\/$/,"");
+      const sub=r.showPath&&dir?`<span class="lib-path">${escapeHtml(dir)}</span>`:"";
+      tr.innerHTML=`
+        <td><div class="name-cell">${fileIcon()}<span class="fname">${escapeHtml(f.name)}</span>${sub}</div></td>
+        <td class="col-type" style="color:var(--muted);font-size:12.5px">${t("typeFile")}</td>
+        <td class="size-cell" style="text-align:right">${fmtBytes(f.size)}</td>
+        <td><div class="row-actions">
+          <button class="btn sm icon" data-act="lib-download" title="${t("download")}"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg></button>
+          <button class="btn sm primary" data-act="send-file" title="${t("libSend")}">${t("libSend")}</button>
+        </div></td>`;
+    }
+    el.libRows.appendChild(tr);
+  }
+}
+let libSearchTimer;
+el.libSearch.oninput=e=>{clearTimeout(libSearchTimer);const v=e.target.value;libSearchTimer=setTimeout(()=>{libState.q=v;renderLibrary();},160);};
+
+el.libRows.onclick=e=>{
+  const tr=e.target.closest("tr");if(!tr)return;
+  const actBtn=e.target.closest("[data-act]");
+  if(actBtn){
+    e.stopPropagation();const act=actBtn.dataset.act;
+    if(act==="lib-download")return libDownload(tr.dataset.file);
+    if(act==="send-file")return libSendFile(tr.dataset.file);
+    if(act==="send-folder")return libSendFolder(tr.dataset.dir);
+    return;
+  }
+  if(tr.dataset.dir){libState.path=[...libState.path,tr.dataset.dir];renderLibrary();}
+};
+
+async function fetchLibFile(path){
+  const resp=await fetch(libFileUrl(path));
+  if(!resp.ok)throw new Error("HTTP "+resp.status+" — "+baseName(path));
+  return new File([await resp.blob()],baseName(path),{type:"application/octet-stream"});
+}
+async function libDownload(path){
+  try{
+    const resp=await fetch(libFileUrl(path));if(!resp.ok)throw new Error("HTTP "+resp.status);
+    triggerDownload(new Uint8Array(await resp.arrayBuffer()),baseName(path));toast(t("tDownloaded"));
+  }catch(err){toast(err.message||String(err),true);}
+}
+async function libSendFile(path){
+  if(state.conn!=="connected")return toast(t("libNeedConn"),true);
+  if(uploadBusy)return toast(t("upBusy"),true);
+  const dest=state.path;
+  try{
+    toast(t("libFetching"));
+    const file=await fetchLibFile(path);
+    await uploadItems([{rel:"",file}],UP_UI_LIB);
+    toast(t("tSentTo",dest));
+  }catch(err){toast(err.message||String(err),true);}
+}
+async function libSendFolder(dirName){
+  if(state.conn!=="connected")return toast(t("libNeedConn"),true);
+  if(uploadBusy)return toast(t("upBusy"),true);
+  const node=libNodeAt([...libState.path,dirName]);
+  if(!node)return;
+  const all=libColl(node,[]);
+  if(!all.length)return toast(t("libFolderEmpty"),true);
+  const parentPrefix=libState.path.length?libState.path.join("/")+"/":"";
+  try{
+    toast(t("libFetching"));
+    const items=await Promise.all(all.map(async f=>{
+      const relPath=f.path.slice(parentPrefix.length);           // "dirName/…/name.bin"
+      const rel=relPath.slice(0,relPath.length-f.name.length).replace(/\/$/,"");
+      return{rel,file:await fetchLibFile(f.path)};
+    }));
+    await uploadItems(items,UP_UI_LIB);
+  }catch(err){toast(err.message||String(err),true);}
+}
+
+/* ============================ TABS ============================ */
+document.querySelectorAll(".tab").forEach(tab=>{
+  tab.onclick=()=>{
+    document.querySelectorAll(".tab").forEach(x=>x.classList.remove("on"));
+    document.querySelectorAll(".panel").forEach(x=>x.classList.remove("on"));
+    tab.classList.add("on");document.getElementById("panel-"+tab.dataset.tab).classList.add("on");
+    if(tab.dataset.tab==="library")libEnsureLoaded();
+  };
+});
+
+/* ---------- before-you-start note (dismissible, remembered) ---------- */
+(function initUsageNote(){
+  let dismissed=false;
+  try{dismissed=localStorage.getItem("wuzplay_note_dismissed")==="1";}catch(_){}
+  if(!dismissed)el.usageNote.classList.remove("hide");
+  el.usageNoteClose.onclick=()=>{el.usageNote.classList.add("hide");try{localStorage.setItem("wuzplay_note_dismissed","1");}catch(_){}};
+})();
+
+/* ============================ INIT ============================ */
+if(!ENABLE_LIBRARY){
+  document.querySelector('.tab[data-tab="library"]').remove();
+  document.getElementById("panel-library").remove();
+}
+applyI18n();
+// show the notice only for genuinely unsupported browsers; plain http:// stays quiet
+if(!navigator.bluetooth&&window.isSecureContext)el.unsupported.classList.remove("hide");
+el.filesEmpty.classList.remove("hide");
+setStatus("idle");
+loadFwSources(); // populate the OTA firmware list from tool/firmware/firmware.json
+log("Wuzplay NFC Tool ready.","info");
+})();
+</script>
+</body>
+</html>
