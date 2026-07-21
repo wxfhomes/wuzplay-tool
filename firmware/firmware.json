@@ -1,0 +1,14 @@
+{
+  "packages": [
+    {
+      "name": "Full data version",
+      "file": "wuzplay-full-data.zip",
+      "desc": "Includes the built-in NFC tag library. Choose this for a complete, ready-to-use device."
+    },
+    {
+      "name": "No data version",
+      "file": "wuzplay-no-data.zip",
+      "desc": "Does not include the built-in tag library. Smaller and quicker to flash — choose this if you manage your own tag files."
+    }
+  ]
+}
