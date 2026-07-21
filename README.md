@@ -99,9 +99,48 @@ python3 build-firmware.py
 
 ## 固件升级注意
 
-- 必须使用与设备型号（LCD / OLED）**匹配**的固件包，否则可能变砖。
-- 升级过程勿断电、勿关页面。
-- 支持官方 Pixl.js 发布包（release .zip）或单个固件 `.zip`。
+- 页面上的固件包来自 `tool/firmware/`，由 `build-firmware.py` 生成 `firmware.json`。
+  每个包可写 `name`（显示名）、`desc`（一行说明）、`recommended: true`（推荐标记），
+  重跑脚本会保留这些字段，推荐包排在最前。
+- 当前提供两个固定发布文件名，后续发版直接覆盖同名文件：
+  - `wuzplay-full-data.zip` — 固件 + 内置标签库
+  - `wuzplay-no-data.zip` — 仅固件，不含标签库
+- 页面下载固定文件名时使用 `cache: "no-store"`，避免浏览器继续使用旧固件包。
+- 也支持用户手动选择本地固件 `.zip`。
+- **JSZip 已本地化**（`jszip.min.js`，MIT）。不能改回 CDN：在 "Start update"
+  的点击处理里 await 一个网络请求会耗掉浏览器的 user gesture，
+  `requestDevice()` 随后就打不开设备选择框了。
+- 同理，恢复路径里 `requestDevice()` 必须是点击后的**第一个 await**，
+  固件包解析挪到了选择固件时（`prepareFwImages`）。
+
+### ENTER_DFU (0x02) 的时序约束 —— 不要再踩
+
+固件端（`~/projects/rmiibo`，`src/rmiibo/mod/df/df_proto_info.c`）分两步：
+
+1. 收到 0x02 → **立刻回 OK 帧**；
+2. 等这帧发送完成（BLE TX complete）产生 `DF_EVENT_DATA_TRANSMIT_READY`
+   → 才 `ble_disable()` + `enter_dfu()` 真正重启。
+
+而 `df_core_on_event()` 在收到 `DF_EVENT_LINK_DISCONNECTED` 时会
+`m_df_ctx.cmd = NULL`，把待处理命令槽清掉。
+
+**所以：收到 0x02 的 OK 回包后绝对不能主动断开连接**，否则第 2 步永远
+不会执行，设备不重启，bootloader 不广播，选择框自然是空的。
+必须等设备**自己**断链 —— 那个断链才是"已重启"的信号
+（`PixlClient.waitForDisconnect()`）。
+
+### bootloader 事实（来自固件仓库）
+
+- 广播名 `Wuzplay dfu`（`bootloader/config/sdk_config.h` 的 `NRF_DFU_BLE_ADV_NAME`）。
+  旧版按上游 readme 编译的是 `rmiibo dfu`。
+- 广播包里**带** 16-bit DFU Service UUID `0xFE59`（`nrf_dfu_ble.c` `advertising_init`），
+  所以按 UUID 过滤是可行的，名字前缀只是兜底。
+- bootloader 的 MAC 是 app 的 **MAC+1**（`gap_address_change()`），
+  所以必须重新弹一次选择框，不能复用之前的 device 对象。
+- 手动进 DFU：设备菜单 **设置 → 固件更新**，或者拔电池、按住按键、再装电池。
+- 设备重启进 DFU 后，选择器同时按 DFU 服务 UUID 和名称前缀
+  （`Dfu` / `rmiibo` / `Pixl` / `Wuz`）过滤；若仍找不到，界面会出现
+  “显示全部蓝牙设备”按钮兜底。
 
 ## ⚠️ 上线前请用真机测试
 

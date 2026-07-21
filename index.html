@@ -47,6 +47,9 @@
 
   /* ===== Connection bar ===== */
   .connbar{display:flex;align-items:center;gap:12px;margin:18px 0 6px;flex-wrap:wrap}
+  .file-connection{margin-bottom:14px;padding:12px 14px;border:1px solid var(--line);border-radius:var(--radius);background:var(--panel)}
+  .file-connection .connbar{margin:0}
+  .file-connection .drive{margin:12px 0 0}
   .status{display:flex;align-items:center;gap:8px;font-size:13px;color:var(--muted)}
   .dot{width:10px;height:10px;border-radius:50%;background:#556;box-shadow:0 0 0 3px rgba(85,85,102,.15)}
   .dot.on{background:var(--accent);box-shadow:0 0 0 3px var(--accent-soft)}
@@ -59,12 +62,13 @@
     display:inline-flex;align-items:center;justify-content:center;gap:7px;
     border:1px solid var(--line);background:var(--panel-2);color:var(--text);
     padding:9px 15px;border-radius:6px;font-size:14px;font-family:inherit;cursor:pointer;
-    transition:.15s;white-space:nowrap;
+    transition:background .16s ease,border-color .16s ease,box-shadow .16s ease,transform .16s ease;white-space:nowrap;
   }
   .btn:hover:not(:disabled){border-color:#4a4a4a;background:#2e2e2e}
   .btn:disabled{opacity:.45;cursor:not-allowed}
   .btn.primary{background:linear-gradient(180deg,var(--accent),var(--accent-2));border-color:transparent;color:#00232e;font-weight:700}
-  .btn.primary:hover:not(:disabled){filter:brightness(1.06)}
+  .btn.primary:hover:not(:disabled){background:linear-gradient(180deg,#35ddff,#00bce8);border-color:transparent;transform:translateY(-1px);box-shadow:0 7px 18px rgba(0,210,255,.2)}
+  .btn.primary:active:not(:disabled){transform:translateY(0);box-shadow:0 3px 10px rgba(0,210,255,.14)}
   .btn.danger{color:#fca5a5;border-color:#5b2626}
   .btn.danger:hover:not(:disabled){background:var(--danger-soft)}
   .btn.sm{padding:6px 10px;font-size:12.5px;border-radius:5px}
@@ -102,8 +106,22 @@
   .uplabel{font-size:12.5px;color:var(--muted);font-family:var(--mono);white-space:nowrap;max-width:45%;overflow:hidden;text-overflow:ellipsis}
   .uppct{font-size:12px;color:var(--muted);font-family:var(--mono);min-width:38px;text-align:right}
 
-  /* online firmware list */
-  .fw-sources{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:14px}
+  /* online firmware list — one card per package so the two variants read clearly */
+  .fw-sources{display:grid;gap:10px;margin-bottom:16px}
+  .fw-sources .fw-head{font-size:12.5px;color:var(--muted)}
+  .fw-card{display:flex;gap:12px;align-items:flex-start;text-align:left;width:100%;
+    border:1px solid var(--line);background:var(--bg-2);border-radius:10px;padding:13px 15px;
+    color:var(--text);font-family:inherit;font-size:14px;cursor:pointer;
+    transition:border-color .16s ease,background .16s ease,box-shadow .16s ease,transform .16s ease}
+  @media (hover:hover){
+    .fw-card:hover:not([disabled]){border-color:#505860;background:#202428;transform:translateY(-1px);box-shadow:0 7px 20px rgba(0,0,0,.2)}
+  }
+  .fw-card:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+  .fw-card[disabled]{opacity:.55;cursor:default}
+  .fw-card.sel{border-color:var(--accent);background:rgba(0,210,255,.07);box-shadow:inset 0 0 0 1px rgba(0,210,255,.12)}
+  .fw-card svg{flex:none;margin-top:2px;color:var(--accent)}
+  .fw-card .fw-name{font-weight:600;display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+  .fw-card .fw-desc{font-size:12.5px;color:var(--muted);margin-top:4px;line-height:1.5}
 
   /* library search */
   .lib-search{background:var(--bg-2);border:1px solid var(--line);border-radius:6px;color:var(--text);padding:9px 12px;font-size:14px;font-family:inherit}
@@ -220,26 +238,6 @@
     <button id="usageNoteClose" class="note-close" aria-label="Dismiss">&times;</button>
   </div>
 
-  <!-- Connection bar -->
-  <div class="connbar">
-    <button id="btnConnect" class="btn primary">
-      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M7 8l10 8-5 4V4l5 4L7 16"/></svg>
-      <span data-i18n="connect">Connect</span>
-    </button>
-    <button id="btnDisconnect" class="btn hide" data-i18n="disconnect">Disconnect</button>
-    <div class="status">
-      <span id="dot" class="dot"></span>
-      <span id="statusText" data-i18n="notConnected">Not connected</span>
-    </div>
-    <span id="devMeta" class="dev-meta"></span>
-  </div>
-
-  <!-- Drive meter -->
-  <div id="drive" class="drive">
-    <div class="drive-top"><span id="driveLabel"></span><span id="driveFree"></span></div>
-    <div class="meter"><i id="driveFill"></i></div>
-  </div>
-
   <!-- Tabs -->
   <div class="tabs">
     <button class="tab on" data-tab="files" data-i18n="tabFiles">Files</button>
@@ -249,6 +247,25 @@
 
   <!-- ===== Files panel ===== -->
   <section id="panel-files" class="panel on">
+    <div class="file-connection">
+      <div class="connbar">
+        <button id="btnConnect" type="button" class="btn primary">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M7 8l10 8-5 4V4l5 4L7 16"/></svg>
+          <span data-i18n="connectFiles">Connect for files</span>
+        </button>
+        <button id="btnDisconnect" type="button" class="btn hide" data-i18n="disconnect">Disconnect</button>
+        <div class="status">
+          <span id="dot" class="dot"></span>
+          <span id="statusText" data-i18n="notConnected">Not connected</span>
+        </div>
+        <span id="devMeta" class="dev-meta"></span>
+      </div>
+      <div id="drive" class="drive">
+        <div class="drive-top"><span id="driveLabel"></span><span id="driveFree"></span></div>
+        <div class="meter"><i id="driveFill"></i></div>
+      </div>
+    </div>
+
     <div class="toolbar">
       <div id="crumbs" class="crumbs grow"></div>
       <input id="fileInput" type="file" multiple class="hide" />
@@ -333,18 +350,13 @@
 
   <!-- ===== Firmware panel ===== -->
   <section id="panel-fw" class="panel">
-    <div class="warnbox">
-      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
-      <span data-i18n="fwWarn">Flashing firmware is risky: use a package that matches your device model (LCD / OLED). Do not power off or close this page during the update, or the device may fail to boot.</span>
-    </div>
-
     <div class="card">
       <div id="fwSources" class="fw-sources hide"></div>
       <input id="fwInput" type="file" accept=".zip" class="hide" />
       <div id="fwPick" class="fw-pick">
         <svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" style="opacity:.6;margin-bottom:8px"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
-        <div data-i18n="fwPick">Click to choose a firmware package (.zip)</div>
-        <div style="font-size:12px;color:var(--muted);margin-top:4px" data-i18n="fwPickSub">Official Pixl.js release or a single firmware .zip</div>
+        <div data-i18n="fwPick">Or click to choose a firmware package (.zip) from your computer</div>
+        <div style="font-size:12px;color:var(--muted);margin-top:4px" data-i18n="fwPickSub">Use this only if you were sent a custom package</div>
       </div>
 
       <div class="stages" id="fwStages">
@@ -361,7 +373,9 @@
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
         <div style="flex:1">
           <div data-i18n="fwReconnectMsg">The device is rebooting into update mode; its Bluetooth name usually becomes <b>DfuTarg</b>. Click the button below and pick it in the dialog.</div>
-          <button id="btnFwReconnect" class="btn sm primary" style="margin-top:10px" data-i18n="fwReconnectBtn">Select update-mode device</button>
+          <div id="fwManualHint" class="hide" style="margin-top:8px;padding-top:8px;border-top:1px solid rgba(255,255,255,.12)" data-i18n="fwManualBody">The device didn't switch over on its own. Put it into update mode by hand — on the device go to <b>Settings → Firmware update</b>, or remove the battery, hold the button down and reinsert the battery. Its Bluetooth name becomes <b>Wuzplay dfu</b>. Then click the button below.</div>
+          <button id="btnFwReconnect" type="button" class="btn sm primary" style="margin-top:10px" data-i18n="fwReconnectBtn">Select update-mode device</button>
+          <button id="btnFwShowAll" type="button" class="btn sm" style="margin-top:10px;margin-left:8px" data-i18n="fwShowAll">Can't find it? Show all Bluetooth devices</button>
         </div>
       </div>
 
@@ -372,7 +386,6 @@
         <button id="btnFwReset" class="btn hide" data-i18n="fwReset">Start over</button>
       </div>
     </div>
-    <p style="font-size:12.5px;color:var(--muted);margin-top:12px" data-i18n="fwNote">Tip: connect the device on the Files tab first, then update here for best reliability.</p>
   </section>
 
   <!-- Activity log -->
@@ -386,7 +399,7 @@
 
   <footer>
     <div data-i18n="footerSupport">Web Bluetooth: Chrome on Android, Chrome/Edge on desktop. On iPhone use the <a href="https://apps.apple.com/app/bluefy-web-ble-browser/id1492822055" target="_blank" rel="noopener">Bluefy</a> browser.</div>
-    <div style="margin-top:6px;opacity:.7">© Wuzplay · <span data-i18n="footerNote">NFC tag data manager &amp; firmware updater</span></div>
+    <div style="margin-top:6px;opacity:.7">© Wuzplay · <span data-i18n="footerNote">NFC tag data manager &amp; firmware updater</span> · <span id="buildStamp" style="font-family:var(--mono);opacity:.8"></span></div>
   </footer>
 </div>
 
@@ -407,6 +420,9 @@
 
 <!-- Vendored: Nordic Secure DFU (MIT) -->
 <script src="secure-dfu.js"></script>
+<!-- Vendored: JSZip (MIT) — must be local, not a CDN: fetching it inside the
+     "Start update" handler burns the user gesture that requestDevice needs. -->
+<script src="jszip.min.js"></script>
 <!-- JSZip for firmware .zip parsing (loaded on demand for the Firmware tab) -->
 <script>
 /* ============================================================================
@@ -425,7 +441,7 @@ const ENABLE_LIBRARY=false;
 /* ---------- i18n ---------- */
 const I18N = {
   en:{
-    tagline:"Bluetooth Data Manager", connect:"Connect", disconnect:"Disconnect", notConnected:"Not connected",
+    tagline:"Bluetooth Data Manager", connect:"Connect", connectFiles:"Connect for files", disconnect:"Disconnect", notConnected:"Not connected",
     connecting:"Connecting…", connected:"Connected", reconnecting:"Reconnecting…", disconnected:"Disconnected",
     tabFiles:"Files", tabLibrary:"Library", tabFw:"Firmware", upload:"Upload", newFolder:"New folder", format:"Format",
     libConnectHint:"Connect your device (Files tab) to send library items straight to it.",
@@ -442,13 +458,11 @@ const I18N = {
     unsupported:"This browser doesn't support Web Bluetooth. Use Chrome/Edge on Android or desktop; on iPhone use the Bluefy browser.",
     noteTitle:"Before you start",
     noteBody:"Use this tool to manage the files on your device. Please watch the tutorial video before you begin. Never delete the device's system files, and don't put your data into system folders.",
-    fwWarn:"Flashing firmware is risky: use a package that matches your device model (LCD / OLED). Do not power off or close this page during the update, or the device may fail to boot.",
-    fwPick:"Click to choose a firmware package (.zip)", fwPickSub:"Official Pixl.js release or a single firmware .zip",
+    fwPick:"Or click to choose a firmware package (.zip) from your computer", fwPickSub:"Use this only if you were sent a custom package",
     fwStart:"Start update", fwReset:"Start over", fwReconnectBtn:"Select update-mode device",
-    fwReconnectMsg:'The device is rebooting into update mode; its Bluetooth name usually becomes <b>DfuTarg</b>. Click the button below and pick it in the dialog.',
+    fwReconnectMsg:'The device is rebooting into update mode; its Bluetooth name becomes <b>Wuzplay dfu</b>. Click the button below and pick it in the dialog.',
     stEnter:"Switch to update mode", stReconnect:"Reconnect in update mode", stPrepare:"Parse firmware package",
     stTransfer:"Transfer firmware", stReboot:"Reboot device",
-    fwNote:"Tip: connect the device on the Files tab first, then update here for best reliability.",
     log:"Activity log", footerSupport:'Web Bluetooth: Chrome on Android, Chrome/Edge on desktop. On iPhone use the <a href="https://apps.apple.com/app/bluefy-web-ble-browser/id1492822055" target="_blank" rel="noopener">Bluefy</a> browser.',
     footerNote:"NFC tag data manager & firmware updater",
     mkdirTitle:"New folder", mkdirMsg:"Enter a folder name:",
@@ -466,9 +480,16 @@ const I18N = {
     fwDirectDfu:"Device is already in update mode — starting transfer.",
     uploadFolder:"Upload folder", upCancelled:"Upload cancelled",
     upFailed:(n)=>`, ${n} failed`, upBusy:"An upload is in progress — wait or cancel it first.",
-    fwOnline:"OTA firmware:", fwFetching:"Downloading firmware package…", fwFetchErr:"Couldn't download the firmware package. Check your connection."
+    fwOnline:"Choose a firmware package:", fwFetching:"Downloading firmware package…",
+    fwFetchErr:"Couldn't download the firmware package. Check your connection.",
+    fwWithData:"With tag data", fwNoData:"Firmware only",
+    fwShowAll:"Can't find it? Show all Bluetooth devices",
+    fwManualBody:'The device didn\'t switch over on its own. Put it into update mode by hand — on the device go to <b>Settings → Firmware update</b>, or remove the battery, hold the button down and reinsert the battery. Its Bluetooth name becomes <b>Wuzplay dfu</b>. Then click the button below.'
   }
 };
+// Bump on every change that needs verifying on real hardware — it's shown in the
+// footer and logged, so "it still doesn't work" can be tied to a known build.
+const TOOL_BUILD="v18";
 const LANG="en";
 function t(key,...args){const v=I18N[LANG][key]; return typeof v==="function"?v(...args):v;}
 
@@ -673,7 +694,19 @@ class PixlClient{
   async openFile(path,mode){const m={r:0x08,w:0x16}[mode];const r=await this._send(0x12,cat(encStr(path),Uint8Array.of(m)));if(r.status!==0)return{ok:false,error:this._vfs(r.status)};return{ok:true,data:new Cursor(r.payload).u8()};}
   async writeChunk(id,chunk){const r=await this._send(0x15,cat(Uint8Array.of(id),chunk));return r.status!==0?{ok:false,error:this._vfs(r.status)}:{ok:true};}
   async closeFile(id){const r=await this._send(0x13,Uint8Array.of(id));return r.status!==0?{ok:false,error:this._vfs(r.status)}:{ok:true};}
-  async enterDfu(){this._intentional=true;try{await this._send(0x02);return{ok:true};}catch(err){const m=err.message||"";if(m.includes("disconnected")||m.includes("timed out")||m.includes("Not connected"))return{ok:true};this._intentional=false;return{ok:false,error:m};}}
+  async enterDfu(){
+    this._intentional=true;
+    try{await this._send(0x02);return{ok:true};}
+    catch(err){
+      const m=err.message||"";
+      // Match Mochi's proven flow: rebooting can surface as a disconnect,
+      // timeout, or an already-closed connection depending on the BLE stack.
+      // Keep the disconnect intentional so the normal-mode reconnect loop
+      // cannot race the subsequent DFU-mode chooser.
+      if(m.includes("disconnected")||m.includes("timed out")||m.includes("Not connected"))return{ok:true};
+      this._intentional=false;return{ok:false,error:m};
+    }
+  }
   async readFileData(path){const o=await this.openFile(path,"r");if(!o.ok)return o;const id=o.data;try{const r=await this._send(0x14,Uint8Array.of(id));if(r.status!==0)return{ok:false,error:this._vfs(r.status)};return{ok:true,data:r.payload};}finally{await this.closeFile(id).catch(()=>{});}}
   async uploadFile(remotePath,file,onProgress,abortSignal,chunkSize=242){
     validatePath(remotePath,"file");
@@ -712,7 +745,7 @@ const el={};
 ["btnConnect","btnDisconnect","dot","statusText","devMeta","drive","driveLabel","driveFree","driveFill",
  "crumbs","fileInput","btnUpload","btnMkdir","btnRefresh","btnFormat","dropzone","fileRows","filesEmpty",
  "log","unsupported","fwInput","fwPick","fwStages","fwBar","fwBarInfo","fwBarLabel","fwBarPct",
- "fwReconnectBox","btnFwReconnect","fwResult","btnFwStart","btnFwReset",
+ "fwReconnectBox","btnFwReconnect","btnFwShowAll","fwManualHint","fwResult","btnFwStart","btnFwReset",
  "modalBg","modalTitle","modalMsg","modalInput","modalCancel","modalOk","toast",
  "filesEmptyText","logWrap",
  "folderInput","btnUploadFolder","upWrap","upLabel","upPct","upFill","btnUpCancel","fwSources",
@@ -741,7 +774,7 @@ function applyI18n(){
   document.querySelectorAll("[data-i18n]").forEach(n=>{
     const k=n.getAttribute("data-i18n");const v=I18N[LANG][k];
     if(v==null)return;
-    if(k==="fwReconnectMsg"||k==="footerSupport"||k==="fwWarn")n.innerHTML=v;else n.textContent=v;
+    if(k==="fwReconnectMsg"||k==="footerSupport"||k==="fwManualBody")n.innerHTML=v;else n.textContent=v;
   });
   document.querySelectorAll("[data-i18n-ph]").forEach(n=>{
     const v=I18N[LANG][n.getAttribute("data-i18n-ph")];if(v!=null)n.placeholder=v;
@@ -1045,13 +1078,29 @@ let dfuBusy=false;
 
 function loadJSZip(){
   if(window.JSZip)return Promise.resolve(window.JSZip);
-  return new Promise((resolve,reject)=>{
-    const s=document.createElement("script");
-    s.src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js";
-    s.onload=()=>window.JSZip?resolve(window.JSZip):reject(new Error("JSZip failed"));
-    s.onerror=()=>reject(new Error("JSZip failed"));
-    document.head.appendChild(s);
-  });
+  return Promise.reject(new Error("JSZip failed")); // vendored in jszip.min.js
+}
+
+/* Parse the package as soon as it's chosen, never inside the "Start update"
+ * click. requestDevice() needs an unspent user gesture, and Chrome expires it
+ * after a few seconds — awaiting a zip parse first is what left the chooser
+ * empty while the Files tab (which calls requestDevice straight from its click
+ * handler) worked fine. */
+async function prepareFwImages(){
+  window.__fwImages=null;
+  if(!window.__fwFile)return;
+  try{
+    const JSZip=await loadJSZip();
+    window.__fwImages=await loadDfuImages(window.__fwFile,JSZip);
+    log(`Firmware package ready: ${window.__fwFile.name}`,"ok");
+  }catch(err){
+    log("Firmware package invalid: "+(err.message||err),"err");
+    toast(err.message||String(err),true);
+    window.__fwFile=null;window.__fwLabel="";window.__fwSource=null;
+    el.fwSources.querySelectorAll(".fw-card").forEach(c=>c.classList.remove("sel"));
+    renderFwPick();
+    el.btnFwStart.disabled=true;
+  }
 }
 /* ---------- OTA firmware list (auto-loaded from tool/firmware/) ---------- */
 // Drop OTA .zip packages into tool/firmware/ and run `python3 build-firmware.py`
@@ -1070,7 +1119,10 @@ async function loadFwSources(){
     if(resp.ok){
       const data=await resp.json();
       for(const p of (data.packages||[])){
-        if(p&&p.file)fwSourcesList.push({name:p.name||p.file,url:FIRMWARE_DIR+encodeURIComponent(p.file)});
+        if(p&&p.file)fwSourcesList.push({
+          name:p.name||p.file, desc:p.desc||"",
+          url:FIRMWARE_DIR+encodeURIComponent(p.file),
+        });
       }
       log(`OTA firmware list: ${fwSourcesList.length} package(s).`,"info");
     }
@@ -1080,20 +1132,36 @@ async function loadFwSources(){
 function renderFwSources(){
   if(!fwSourcesList.length){el.fwSources.classList.add("hide");return;}
   el.fwSources.classList.remove("hide");
-  el.fwSources.innerHTML=`<span style="font-size:12.5px;color:var(--muted);align-self:center">${t("fwOnline")}</span>`;
+  el.fwSources.innerHTML=`<div class="fw-head">${t("fwOnline")}</div>`;
   fwSourcesList.forEach(src=>{
     const b=document.createElement("button");
-    b.className="btn sm";b.textContent=src.name;
+    b.className="fw-card";b.type="button";
+    b.innerHTML=`<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+      <div style="flex:1">
+        <div class="fw-name">${escapeHtml(src.name)}</div>
+        ${src.desc?`<div class="fw-desc">${escapeHtml(src.desc)}</div>`:""}
+      </div>`;
     b.onclick=async()=>{
       if(dfuBusy)return;
       b.disabled=true;toast(t("fwFetching"));
       try{
-        const resp=await fetch(src.url);
+        // Firmware filenames are stable release slots. Always bypass browser
+        // caches so replacing a package cannot serve an older build.
+        const resp=await fetch(src.url,{cache:"no-store"});
         if(!resp.ok)throw new Error("HTTP "+resp.status);
         const blob=await resp.blob();
         const fname=decodeURIComponent(src.url.split("/").pop()||"firmware.zip");
         window.__fwFile=new File([blob],fname,{type:"application/zip"});
+        window.__fwLabel=src.name;
+        window.__fwSource="online";
+        el.fwInput.value="";
+        // mark the chosen card so the selection stays visible while scrolling
+        el.fwSources.querySelectorAll(".fw-card").forEach(c=>c.classList.remove("sel"));
+        b.classList.add("sel");
+        // Online packages are represented by the selected card. Keep the
+        // custom-upload area unchanged and do not expose the package filename.
         renderFwPick();el.btnFwStart.disabled=false;
+        await prepareFwImages();
       }catch(err){log("Firmware fetch failed: "+(err.message||err),"err");toast(t("fwFetchErr"),true);}
       finally{b.disabled=false;}
     };
@@ -1103,16 +1171,30 @@ function renderFwSources(){
 
 el.fwPick.onclick=()=>{if(!dfuBusy)el.fwInput.click();};
 function renderFwPick(){ // re-runnable so a language toggle can refresh the label
-  const f=window.__fwFile;if(!f)return;
+  const f=window.__fwFile;
+  if(window.__fwSource!=="custom"){
+    el.fwPick.className="fw-pick";
+    el.fwPick.innerHTML=`<svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" style="opacity:.6;margin-bottom:8px"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+      <div>${t("fwPick")}</div>
+      <div style="font-size:12px;color:var(--muted);margin-top:4px">${t("fwPickSub")}</div>`;
+    return;
+  }
+  if(!f)return;
   el.fwPick.className="fw-pick has";
-  const variant=/(_lcd|lcd)/i.test(f.name)?"LCD":/(_oled|oled)/i.test(f.name)?"OLED":"";
+  // Prefer the catalogue name; fall back to reading the category off the file name.
+  const variant=window.__fwLabel
+    ||(/no-tag-data|nodb/i.test(f.name)?t("fwNoData")
+      :/with-tag-data/i.test(f.name)?t("fwWithData"):"");
   el.fwPick.innerHTML=`<div class="fw-file">
     <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="1.8"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
     <div class="meta"><div class="fn">${escapeHtml(f.name)}</div><div class="sub">${fmtBytes(f.size)}${variant?"  ·  "+variant:""}</div></div>
     <button class="btn sm" id="fwChange">${t("changeBtn")}</button></div>`;
   document.getElementById("fwChange").onclick=ev=>{ev.stopPropagation();el.fwInput.click();};
 }
-el.fwInput.onchange=e=>{const f=e.target.files[0];if(!f)return;window.__fwFile=f;renderFwPick();el.btnFwStart.disabled=false;};
+el.fwInput.onchange=e=>{const f=e.target.files[0];if(!f)return;
+  window.__fwFile=f;window.__fwLabel="";window.__fwSource="custom"; // a local file has no catalogue name
+  el.fwSources.querySelectorAll(".fw-card").forEach(c=>c.classList.remove("sel"));
+  renderFwPick();el.btnFwStart.disabled=false;prepareFwImages();};
 
 function fwStage(id,st){
   document.querySelectorAll("#fwStages .stage").forEach(s=>{
@@ -1157,32 +1239,70 @@ el.btnFwStart.onclick=startDfu;
 el.btnFwReset.onclick=()=>{resetFwUi();};
 function resetFwUi(){
   dfuBusy=false;el.fwStages.classList.remove("show");el.fwBar.classList.remove("show");el.fwBarInfo.classList.add("hide");
-  el.fwReconnectBox.classList.add("hide");el.fwResult.classList.add("hide");el.fwResult.innerHTML="";
+  el.fwReconnectBox.classList.add("hide");el.fwManualHint.classList.add("hide");
+  el.fwResult.classList.add("hide");el.fwResult.innerHTML="";
   el.btnFwReset.classList.add("hide");el.btnFwStart.classList.remove("hide");
   el.btnFwStart.disabled=!window.__fwFile;
   _fwLastPct=-1;
   document.querySelectorAll("#fwStages .stage").forEach(s=>s.classList.remove("done","active"));
 }
-function waitReconnectClick(dfu,DFU_UUID){
-  // Never rejects on a dismissed picker: the device is sitting in DFU mode
-  // waiting for us, so closing the chooser must not abort the whole update.
-  return new Promise((resolve)=>{
+// The bootloader advertises NRF_DFU_BLE_ADV_NAME = "Wuzplay dfu" and the DFU
+// service UUID 0xFE59. The default picker uses Mochi's exact options — a
+// known-good reference on this hardware. Extra namePrefix OR-branches used to
+// be appended here, but several Web Bluetooth stacks (Bluefy on iOS, some
+// Android builds) mishandle multi-filter unions and return an empty scan, so
+// the chooser found nothing even though the UUID branch alone matches. Keep
+// the default minimal; "show all devices" is the escape hatch for bootloaders
+// that advertise neither the UUID nor a recognizable name.
+function dfuPickerOptions(showAll){
+  const DFU_UUID=window.SecureDfu.SERVICE_UUID;
+  return showAll
+    ?{acceptAllDevices:true,optionalServices:[DFU_UUID,NUS_SERVICE]}
+    :{filters:[{services:[DFU_UUID]}],optionalServices:[DFU_UUID]};
+}
+
+function manualDfuHint(show){el.fwManualHint.classList.toggle("hide",!show);}
+
+function waitReconnectClick(dfu){
+  return new Promise((resolve,reject)=>{
     el.fwReconnectBox.classList.remove("hide");
-    el.btnFwReconnect.onclick=()=>{el.btnFwReconnect.disabled=true;
-      dfu.requestDevice(false,[{services:[DFU_UUID]}])
-        .then(d=>{el.fwReconnectBox.classList.add("hide");el.btnFwReconnect.disabled=false;resolve(d);})
+    el.btnFwShowAll.classList.remove("hide");
+    const cleanup=()=>{
+      el.btnFwReconnect.removeEventListener("click",pickFiltered);
+      el.btnFwShowAll.removeEventListener("click",pickAll);
+    };
+    const beginPick=(request)=>{
+      // requestDevice must run synchronously in this trusted click callback.
+      // Logging is synchronous and does not consume transient activation.
+      const activation=navigator.userActivation?navigator.userActivation.isActive:"unknown";
+      log(`[DFU] Picker click; user activation=${activation}.`,"cmd");
+      el.btnFwReconnect.disabled=true;el.btnFwShowAll.disabled=true;
+      cleanup();
+      request()
+        .then(d=>{
+          log(`[DFU] Picked "${d.name||"(unnamed)"}" (id ${d.id||"?"}).`,"cmd");
+          el.fwReconnectBox.classList.add("hide");el.btnFwReconnect.disabled=false;el.btnFwShowAll.disabled=false;resolve(d);})
         .catch(err=>{
-          el.btnFwReconnect.disabled=false;
-          log("[DFU] "+(err.message||err),"err");
-          toast(t("fwPickAgain"),true);
+          el.btnFwReconnect.disabled=false;el.btnFwShowAll.disabled=false;
+          log(`[DFU] Picker ${err.name||"Error"}: ${err.message||err}`,"err");
+          reject(err);
         });
     };
+    // Match Mochi exactly for the normal path: the same SecureDfu instance,
+    // the same DFU service filter, called directly from a fresh click.
+    const pickFiltered=()=>beginPick(()=>dfu.requestDevice(false,[{services:[window.SecureDfu.SERVICE_UUID]}]));
+    const pickAll=()=>beginPick(()=>navigator.bluetooth.requestDevice(dfuPickerOptions(true)));
+    el.btnFwReconnect.addEventListener("click",pickFiltered);
+    el.btnFwShowAll.addEventListener("click",pickAll);
   });
 }
 
 const IS_MOBILE=/Android|iPhone|iPad|Mobi/i.test(navigator.userAgent);
 
 async function startDfu(){
+  // Without this guard a plain-http or unsupported browser fails deep inside
+  // requestDevice with a generic error that reads as "no devices found".
+  if(!navigator.bluetooth)return toast(t("unsupported"),true);
   if(!window.__fwFile)return toast(t("fwNeedZip"),true);
   dfuBusy=true;el.btnFwStart.disabled=true;el.btnFwStart.classList.add("hide");
   el.fwStages.classList.add("show");el.fwResult.classList.add("hide");
@@ -1201,35 +1321,48 @@ async function startDfu(){
     fwProgress(pct,object==="init"?"Init packet":"Firmware");
   });
   try{
-    // 1. load zip lib + parse images (before touching the device, so failures are cheap)
-    fwStage("prepare","active");
-    let JSZip;try{JSZip=await loadJSZip();}catch(_){throw new Error(t("fwNoJszip"));}
-    const images=await loadDfuImages(window.__fwFile,JSZip);
-    fwStageDone("prepare");
+    // Normally already parsed at selection time; this is the fallback.
+    let images=window.__fwImages;
+    const parseNow=async()=>{
+      if(images)return;
+      let JSZip;try{JSZip=await loadJSZip();}catch(_){throw new Error(t("fwNoJszip"));}
+      images=await loadDfuImages(window.__fwFile,JSZip);
+    };
 
-    // 2. get a device that is in DFU mode
+    // 1. get a device that is in DFU mode
     let device;
     if(state.conn==="connected"){
-      // normal path: reboot the connected device into its bootloader
+      // normal path: the chooser here sits behind its own button, so there's no
+      // gesture to protect — validate the package before rebooting the device.
+      fwStage("prepare","active");await parseNow();fwStageDone("prepare");
       fwStage("enter","active");
       log("[DFU] Rebooting device into update mode…","cmd");
       const enterRes=await state.client.enterDfu();
       if(!enterRes.ok)throw new Error("Couldn't switch to update mode: "+enterRes.error);
       fwStageDone("enter");
+      // Do NOT disconnect here: the firmware answers 0x02 immediately but only
+      // reboots on the follow-up BLE TX-complete event, and a disconnect in
+      // between clears its pending-command slot (rmiibo df_core_on_event) and
+      // cancels the reboot. Plain fixed wait, exactly as Mochi does it.
       await new Promise(r=>setTimeout(r,3000));
       fwStage("reconnect","active");
       log("[DFU] Waiting for you to select the update-mode device…","cmd");
-      device=await waitReconnectClick(dfu,DFU_UUID);
+      device=await waitReconnectClick(dfu);
       fwStageDone("reconnect");
     }else{
       // recovery path: unified picker accepts both normal (NUS) and update-mode
-      // (DFU) devices, so an interrupted flash can always be resumed from here
+      // (DFU) devices, so an interrupted flash can always be resumed from here.
+      // NOTHING may be awaited above this call — it has to run inside the click
+      // gesture or Chrome refuses to open the chooser.
       fwStage("enter","active");
       log("[DFU] Select your device…","cmd");
+      // Mochi's recovery filter: the device may be in either mode at this point.
       const picked=await navigator.bluetooth.requestDevice({
         filters:[{services:[NUS_SERVICE]},{services:[DFU_UUID]}],
         optionalServices:[NUS_SERVICE,DFU_UUID],
       });
+      log(`[DFU] Picked "${picked.name||"(unnamed)"}".`,"cmd");
+      fwStage("prepare","active");await parseNow();fwStageDone("prepare");
       const server=await picked.gatt.connect();
       let inDfuMode=false;
       try{await server.getPrimaryService(DFU_UUID);inDfuMode=true;}catch(_){}
@@ -1247,16 +1380,17 @@ async function startDfu(){
         const enterRes=await tmp.enterDfu();
         if(!enterRes.ok){tmp.disconnect();throw new Error("Couldn't switch to update mode: "+enterRes.error);}
         fwStageDone("enter");
+        // No disconnect here either — see the note in the normal path above.
         await new Promise(r=>setTimeout(r,3000));
         fwStage("reconnect","active");
         log("[DFU] Waiting for you to select the update-mode device…","cmd");
-        device=await waitReconnectClick(dfu,DFU_UUID);
+        device=await waitReconnectClick(dfu);
         fwStageDone("reconnect");
       }
     }
     log(`[DFU] Connected to "${device.name||"DFU device"}".`,"ok");
 
-    // 3. transfer
+    // 2. transfer
     fwStage("transfer","active");
     if(images.base){
       await dfu.update(device,images.base.initData,images.base.imageData);
@@ -1270,13 +1404,17 @@ async function startDfu(){
     if(images.app){await dfu.update(device,images.app.initData,images.app.imageData);log("[DFU] application uploaded.","ok");}
     fwStageDone("transfer");
 
-    // 4. done
+    // 3. done
     fwStage("reboot","active");await new Promise(r=>setTimeout(r,500));fwStageDone("reboot");
     log("[DFU] Firmware updated successfully.","ok");
     el.fwResult.className="notice";el.fwResult.style.borderColor="";el.fwResult.innerHTML=t("fwDone");el.fwResult.classList.remove("hide");
     toast(t("fwDone"));
   }catch(err){
-    const msg=(err&&err.name==="NotFoundError")?"No device selected.":(err.message||String(err));
+    const msg=(err&&err.name==="NotFoundError")?"No device selected."
+      // Chrome throws this when the click that started the update has gone
+      // stale — the chooser simply never opens, which reads as "no devices".
+      :(err&&err.name==="SecurityError")?"The browser blocked the device chooser. Tap “Start update” again."
+      :(err.message||String(err));
     log("[DFU] Failed: "+msg,"err");
     el.fwResult.className="notice err";el.fwResult.innerHTML="❌ "+escapeHtml(msg);el.fwResult.classList.remove("hide");
     el.fwReconnectBox.classList.add("hide");
@@ -1472,6 +1610,8 @@ applyI18n();
 if(!navigator.bluetooth&&window.isSecureContext)el.unsupported.classList.remove("hide");
 el.filesEmpty.classList.remove("hide");
 setStatus("idle");
+document.getElementById("buildStamp").textContent=TOOL_BUILD;
+log("Tool build "+TOOL_BUILD,"info");
 loadFwSources(); // populate the OTA firmware list from tool/firmware/firmware.json
 log("Wuzplay NFC Tool ready.","info");
 })();
