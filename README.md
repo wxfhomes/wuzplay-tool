@@ -1,6 +1,6 @@
 # Wuzplay NFC 工具 (Web Bluetooth)
 
-一个独立的网页工具，参考 [Joysfusion NFC Updater] 和 [Mochi] 为 Wuzplay 设备打造：
+一个独立的网页工具, Wuzplay 设备打造：
 通过 **Web Bluetooth** 连接设备，管理 NFC 标签 `.bin` 文件，并升级固件。
 
 设备跑的是开源的 **pixl.js / allmiibo** 固件，所以协议是公开的。
@@ -10,11 +10,8 @@
 | 文件 | 说明 |
 |------|------|
 | `index.html` | 主程序：品牌界面 + 蓝牙协议层 + 文件管理 + **内置库** + 固件升级 |
-| `library.json` | 内置 amiibo 库清单（由 `build-library.py` 生成，勿手改） |
-| `library/` | 内置标签库的 `.bin` 数据（由 `build-library.py` 生成） |
 | `firmware/` | OTA 固件包 `.zip` + `firmware.json` 清单（由 `build-firmware.py` 生成） |
-| `secure-dfu.js` | Nordic Secure DFU 库（固件升级用），**MIT 许可**，来自 Mochi |
-| `README.md` | 本文件 |
+
 
 ## 功能清单
 
@@ -22,16 +19,9 @@
 **整个文件夹递归**、拖拽）、实时进度条 + 取消、下载、重命名、删除、新建文件夹、
 格式化、NFC tag ID 标记。
 
-**内置库（Library 标签）**：页面自带一整套 NFC 标签 `.bin`（按系列/游戏分类），用户
-无需自备文件——浏览分类、全局搜索、**一键发到设备**（单个 bin 或整个系列文件夹，
-保留子目录结构），也可下载到本地。数据随页面一起托管，用相对路径按需拉取。
-
 **固件升级（OTA / Nordic Secure DFU）**：本地 .zip 或**在线固件列表**、244 字节
 大包传输、3 次自动重试、移动端调优、双镜像（SoftDevice+应用）自动衔接、
 **中断救援**（设备卡在升级模式也能重新选中续刷）。
-
-### 更新内置库
-源数据放在项目根目录的 `ammibodata/`（按 `系列/[子系列/]xxx.bin` 组织）。改动后运行：
 
 ```bash
 python3 build-library.py
@@ -67,7 +57,7 @@ python3 build-firmware.py
 ## 部署（关键）
 
 **不要**把它塞进 Tilda 的 HTML/iframe 嵌入块——Web Bluetooth 必须运行在顶层页面，
-放进跨域 iframe 会因权限策略连不上设备。Joysfusion 也是这么做的（独立页面）。
+放进跨域 iframe 会因权限策略连不上设备。
 
 正确做法：
 
@@ -155,7 +145,5 @@ python3 build-firmware.py
 - `secure-dfu.js` 基于 [web-bluetooth-dfu]（MIT License, © Rob Moran / Augusto Daniele）。
 - 请在正式发布时保留 `secure-dfu.js` 顶部的版权声明。
 
-[Joysfusion NFC Updater]: https://joysfusion.com/nfc-updater/index.html
-[Mochi]: https://github.com/tasken/Mochi
 [Bluefy]: https://apps.apple.com/app/bluefy-web-ble-browser/id1492822055
 [web-bluetooth-dfu]: https://github.com/thegecko/web-bluetooth-dfu
